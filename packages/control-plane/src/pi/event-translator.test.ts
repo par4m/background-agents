@@ -228,6 +228,95 @@ describe("translatePiEvents", () => {
     expect(JSON.stringify(translated)).not.toContain("the secret value");
   });
 
+  it("keeps a memory body out of the shared timeline", () => {
+    const state = { text: "" };
+    const events = [
+      {
+        type: "tool_execution_start",
+        toolCallId: "read-1",
+        toolName: "memory_read",
+        taskId: 2,
+        args: { memoryId: "mem_1" },
+      },
+      {
+        type: "tool_execution_end",
+        toolCallId: "read-1",
+        toolName: "memory_read",
+        taskId: 2,
+        entry: {
+          id: 42,
+          model: [
+            {
+              role: "toolResult",
+              toolCallId: "read-1",
+              toolName: "memory_read",
+              content: [{ type: "text", text: "the owner's private note" }],
+              isError: false,
+            },
+          ],
+        },
+      },
+      {
+        type: "tool_execution_start",
+        toolCallId: "write-1",
+        toolName: "memory_write",
+        taskId: 3,
+        args: {
+          memoryType: "fact",
+          title: "Deploy window",
+          description: "Deploys happen on Tuesdays",
+          content: "the owner's private note",
+          scopeType: "personal",
+        },
+      },
+      {
+        type: "tool_execution_end",
+        toolCallId: "write-1",
+        toolName: "memory_write",
+        taskId: 3,
+        entry: {
+          id: 43,
+          model: [
+            {
+              role: "toolResult",
+              toolCallId: "write-1",
+              toolName: "memory_write",
+              content: [{ type: "text", text: "the owner's private note" }],
+              isError: false,
+            },
+          ],
+        },
+      },
+    ] as unknown as AgentEvent[];
+
+    const translated = translatePiEvents(events, state, {
+      sessionId: "session-1",
+      operationId: "message-1",
+      timestamp: 126,
+    });
+    const serialized = JSON.stringify(translated);
+
+    // The timeline is visible to every collaborator, so a memory body stays
+    // with the model and the timeline keeps the shape.
+    expect(serialized).not.toContain("the owner's private note");
+    expect(translated).toEqual([
+      expect.objectContaining({ tool: "memory_read", status: "running" }),
+      expect.objectContaining({ tool: "memory_read", output: "[redacted]", status: "completed" }),
+      expect.objectContaining({
+        tool: "memory_write",
+        args: {
+          memoryType: "fact",
+          title: "Deploy window",
+          description: "Deploys happen on Tuesdays",
+          content: "[redacted]",
+          scopeType: "personal",
+        },
+        status: "running",
+      }),
+      expect.objectContaining({ tool: "memory_write", output: "[redacted]", status: "completed" }),
+    ]);
+  });
+
   it("projects model usage when an assistant message is committed", () => {
     const state = { text: "" };
     const events = [

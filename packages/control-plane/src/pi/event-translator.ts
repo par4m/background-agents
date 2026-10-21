@@ -349,10 +349,15 @@ function redactToolArguments(tool: string, args: Record<string, unknown>): Recor
   if (tool === "write" && "content" in args) {
     return { path: args.path, content: REDACTED };
   }
+  // A memory write carries the record's body. The timeline is shared, so the
+  // body stays with the model and the timeline keeps the shape.
+  if (tool === "memory_write" && "content" in args) {
+    return { ...args, content: REDACTED };
+  }
   if (tool !== "edit" || !Array.isArray(args.edits)) return args;
   return {
     path: args.path,
-    edits: args.edits.map((edit) =>
+    edits: (args.edits as unknown[]).map((edit) =>
       typeof edit === "object" && edit !== null
         ? { oldText: REDACTED, newText: REDACTED }
         : REDACTED
@@ -366,6 +371,9 @@ function redactToolArguments(tool: string, args: Record<string, unknown>): Recor
  * A read can carry a secret that happened to be in a file or a provider
  * answer, and the timeline is visible to every collaborator of the session.
  * The model still receives the full result; the timeline keeps the shape.
+ *
+ * The memory tools join them: a memory read returns a record's body, and a
+ * personal record's body is the owner's alone.
  */
 const REDACTED_OUTPUT_TOOLS = new Set([
   "write",
@@ -375,6 +383,9 @@ const REDACTED_OUTPUT_TOOLS = new Set([
   "mcp_read_shared",
   "mcp_read_connection",
   "repository_read",
+  "memory_read",
+  "memory_search",
+  "memory_write",
 ]);
 
 function redactToolOutput(tool: string, output: string): string {

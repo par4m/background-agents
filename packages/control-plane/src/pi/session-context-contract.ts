@@ -1,4 +1,5 @@
 import { sandboxSkillInstallationSchema } from "@open-inspect/shared/types/skills";
+import { renderedSessionMemorySchema } from "@open-inspect/shared/types/memories";
 import { z } from "zod";
 import { FULL_GIT_OBJECT_ID_PATTERN } from "../source-control/git-object-id";
 
@@ -62,6 +63,14 @@ export const piSessionContextSchema = z.object({
    * complete.
    */
   externalActions: z.array(piExternalActionProviderSchema).default([]),
+  /**
+   * The session's pinned memory, rendered for Pi.
+   *
+   * The control plane renders it, exactly as it renders it for the sandbox
+   * harnesses; the runtime never assembles memory text itself. Null when the
+   * session has no memory selection or may no longer reach it.
+   */
+  memory: renderedSessionMemorySchema.nullable().default(null),
 });
 
 export type PiSessionContext = z.infer<typeof piSessionContextSchema>;

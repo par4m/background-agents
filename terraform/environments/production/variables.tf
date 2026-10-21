@@ -821,6 +821,17 @@ variable "pi_browser_allowed_domains" {
   default     = ""
 }
 
+variable "pi_memory_mode" {
+  description = "Pi Durable memory capability: off, read_only, or enabled"
+  type        = string
+  default     = "off"
+
+  validation {
+    condition     = contains(["off", "read_only", "enabled"], var.pi_memory_mode)
+    error_message = "pi_memory_mode must be 'off', 'read_only', or 'enabled'."
+  }
+}
+
 variable "pi_external_actions_mode" {
   description = "Pi Durable external publication capability: off, read_only, or enabled"
   type        = string

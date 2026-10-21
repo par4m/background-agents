@@ -4,6 +4,8 @@ import { Workspace, type DurableObjectStorageLike } from "@cloudflare/computer";
 import {
   PI_BROWSER_TOOL_EFFECT_REGISTRATIONS,
   PI_CODEMODE_TOOL_EFFECT_REGISTRATIONS,
+  PI_MEMORY_READ_TOOL_EFFECT_REGISTRATIONS,
+  PI_MEMORY_TOOL_EFFECT_REGISTRATIONS,
   PI_TOOL_EFFECT_REGISTRY,
   normalizeTokenUsage,
   piFeatureCapabilitySnapshotSchema,
@@ -35,7 +37,7 @@ import { createBrowserExtension, type BrowserReadAnswer } from "../pi/browser-ex
 import type { PiBrowserAction, PiBrowserOutcome } from "../pi/browser-transport";
 import { PiHarness } from "agents/harness/pi";
 import { Lifecycle } from "agents/lifecycle";
-import { SessionInternalPaths } from "../session/contracts";
+import { SessionInternalPaths, type SessionInternalPath } from "../session/contracts";
 import { CodexBrokerCredentialStore } from "../pi/codex-credential-store";
 import { PiProjectionCapability } from "../pi/projection-capability";
 import { applyPiDoMigrations } from "../pi/schema";
@@ -113,10 +115,26 @@ import {
   type ExternalActionPrepareRequest,
 } from "@open-inspect/shared";
 import {
+  memorySearchResponseSchema,
+  sandboxMemoryReadResultSchema,
+  sandboxMemoryWriteResultSchema,
+  type MemorySearchInput,
+  type MemorySearchResponse,
+  type SandboxMemoryReadResult,
+  type SandboxMemoryWriteInput,
+  type SandboxMemoryWriteResult,
+} from "@open-inspect/shared/types/memories";
+import {
   createExternalActionPolicyDelegate,
   createGatewayExternalActionTool,
 } from "../pi/external-action-policy-extension";
 import { createBrowserPolicyDelegate } from "../pi/browser-policy-extension";
+import { createMemoryExtension } from "../pi/memory-extension";
+import {
+  createMemoryPolicyDelegate,
+  MEMORY_OWNED_TOOL_NAMES,
+  type MemoryWriteAuthorizationDecision,
+} from "../pi/memory-policy-extension";
 import {
   createSandboxExecutionExtension,
   createSandboxExecutionPolicyDelegate,
@@ -359,6 +377,11 @@ export class PiSessionDO extends DurableObject<PiWorkerBindings> {
                 },
               },
             });
+            const memoryDelegate = createMemoryPolicyDelegate({
+              client: {
+                authorize: async (request, signal) => this.authorizeMemoryWrite(request, signal),
+              },
+            });
             const externalActionDelegate = createExternalActionPolicyDelegate({
               client: {
                 prepare: (request, signal) => this.prepareExternalAction(request, signal),
@@ -388,6 +411,7 @@ export class PiSessionDO extends DurableObject<PiWorkerBindings> {
                     externalActionDelegate,
                     crossSessionDelegate,
                     browserDelegate,
+                    memoryDelegate,
                     workspacePolicyDelegate,
                     codeModePolicyDelegate,
                     sandboxExecutionPolicyDelegate,
@@ -396,6 +420,7 @@ export class PiSessionDO extends DurableObject<PiWorkerBindings> {
                     externalActionDelegate,
                     crossSessionDelegate,
                     browserDelegate,
+                    memoryDelegate,
                     codeModePolicyDelegate,
                     sandboxExecutionPolicyDelegate,
                   ],
@@ -550,6 +575,32 @@ export class PiSessionDO extends DurableObject<PiWorkerBindings> {
             },
           }),
           effects: PI_MCP_TOOL_EFFECT_REGISTRATIONS,
+        });
+      }
+      if (capabilities.memory !== "off") {
+        // A read-only capability admits the reads alone; the write is a
+        // change to the tenant's memory and needs the full capability.
+        const memoryEffects =
+          capabilities.memory === "enabled"
+            ? PI_MEMORY_TOOL_EFFECT_REGISTRATIONS
+            : PI_MEMORY_READ_TOOL_EFFECT_REGISTRATIONS;
+        extensions.push({
+          slot: "memory",
+          feature: "memory",
+          minimumCapability: "read_only",
+          extension: createMemoryExtension({
+            client: {
+              read: (request, signal) => this.readMemory(request, signal),
+              write: (request, signal) => this.writeMemory(request, signal),
+              search: (request, signal) => this.searchMemory(request, signal),
+            },
+            memory: sessionContext.memory,
+            mode: capabilities.memory,
+          }),
+          effects: memoryEffects,
+          ownedToolNames: MEMORY_OWNED_TOOL_NAMES.filter((name) =>
+            memoryEffects.some((registration) => registration.name === name)
+          ),
         });
       }
       const assembly = assemblePiExtensions(extensions, capabilities);
@@ -2004,6 +2055,111 @@ export class PiSessionDO extends DurableObject<PiWorkerBindings> {
           })),
         }
       : { grants: [], shared: [] };
+  }
+
+  /**
+   * Read one fact through the owning session.
+   *
+   * The session resolves the identity, the partition, and the session
+   * principal's current access to it. The agent never holds a credential and
+   * never names a scope it was not given.
+   */
+  private async readMemory(
+    request: { memoryId: string },
+    signal?: AbortSignal
+  ): Promise<SandboxMemoryReadResult> {
+    return this.memoryRequest(
+      SessionInternalPaths.piMemoryRead,
+      request,
+      signal,
+      sandboxMemoryReadResultSchema
+    );
+  }
+
+  /** Write one memory through the owning session. */
+  private async writeMemory(
+    request: SandboxMemoryWriteInput,
+    signal?: AbortSignal
+  ): Promise<SandboxMemoryWriteResult> {
+    return this.memoryRequest(
+      SessionInternalPaths.piMemoryWrite,
+      request,
+      signal,
+      sandboxMemoryWriteResultSchema
+    );
+  }
+
+  /** Search the session's facts through the owning session. */
+  private async searchMemory(
+    request: MemorySearchInput,
+    signal?: AbortSignal
+  ): Promise<MemorySearchResponse> {
+    return this.memoryRequest(
+      SessionInternalPaths.piMemorySearch,
+      request,
+      signal,
+      memorySearchResponseSchema
+    );
+  }
+
+  /**
+   * Ask the owning session whether this write is permitted.
+   *
+   * The session owns the decision: it resolves the target partition and the
+   * session principal's current access to it, exactly as the write does.
+   */
+  private async authorizeMemoryWrite(
+    request: SandboxMemoryWriteInput,
+    signal?: AbortSignal
+  ): Promise<MemoryWriteAuthorizationDecision> {
+    return this.memoryRequest(
+      SessionInternalPaths.piMemoryAuthorize,
+      request,
+      signal,
+      z.object({ allowed: z.boolean(), reason: z.string().optional() })
+    );
+  }
+
+  /**
+   * One memory call to the owning session.
+   *
+   * The session is addressed by its own Durable Object binding, so the
+   * request can only reach the session this runtime was initialized for. The
+   * turn id rides along so the session can fence the call to a live turn and
+   * record the effect against it.
+   */
+  private async memoryRequest<Result>(
+    path: SessionInternalPath,
+    body: unknown,
+    signal: AbortSignal | undefined,
+    resultSchema: z.ZodType<Result>
+  ): Promise<Result> {
+    const sessionId = await this.ctx.storage.get<string>(SESSION_ID_KEY);
+    if (!sessionId) throw new Error("Pi Durable session is not initialized");
+    const operationId = await this.attributedOperationId(ROOT_SESSION);
+    if (!operationId) throw new Error("Pi Durable has no attributed active operation");
+    const response = await this.env.SESSION.getByName(sessionId).fetch(
+      new Request(`http://session${path}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Pi-Operation-ID": operationId,
+          "x-request-id": operationId,
+          ...piTraceHeader(operationId),
+        },
+        body: JSON.stringify(body),
+        signal,
+      })
+    );
+    const parsed = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(
+        typeof (parsed as { error?: unknown } | null)?.error === "string"
+          ? (parsed as { error: string }).error
+          : "The memory operation did not complete"
+      );
+    }
+    return resultSchema.parse(parsed);
   }
 
   /**

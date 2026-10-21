@@ -25,6 +25,9 @@ import { DEFAULT_EXTERNAL_ACTION_APPROVAL_TTL_MS } from "../../external-action-g
 import { z } from "zod";
 import { piRuntimeControlSchema } from "../../../pi/runtime-contract";
 import type { ExternalActionDefinitionRegistry } from "../../external-action-definitions";
+import { createPiOperationFence } from "./pi-operation-fence";
+import { MemoryError } from "../../../memory/errors";
+import type { RenderedSessionMemory } from "@open-inspect/shared/types/memories";
 
 const externalActionIdSchema = z.strictObject({ actionId: z.string().min(1) });
 
@@ -178,12 +181,32 @@ interface PiBridgeHandlerOptions {
   >;
   diffs: Pick<SessionDiffService, "claimBaselines">;
   externalActions?: ExternalActionBridge;
+  /**
+   * The tenant's memory, rendered for this session.
+   *
+   * The control plane renders it, exactly as it renders it for the sandbox
+   * harnesses, so Pi never assembles memory text itself.
+   */
+  memory?: {
+    renderedContext(input: {
+      sessionId: string;
+      requestId: string;
+    }): Promise<RenderedSessionMemory | null>;
+  };
   getSessionId(): string;
 }
 
 /** Internal, binding-only bridge from PiSessionDO to SessionDO-owned capabilities. */
 export class PiBridgeHandler {
-  constructor(private readonly options: PiBridgeHandlerOptions) {}
+  private readonly fence: (request: Request) => boolean;
+
+  constructor(private readonly options: PiBridgeHandlerOptions) {
+    this.fence = createPiOperationFence({
+      sessions: options.sessions,
+      messages: options.messages,
+      controls: options.controls,
+    });
+  }
 
   async credential(request: Request): Promise<Response> {
     if (!this.activeOperation(request)) {
@@ -272,6 +295,7 @@ export class PiBridgeHandler {
           agentMessagingEnabled:
             session?.spawn_source === "user" || session?.spawn_source === "slack-bot",
           externalActions: await this.availableExternalActions(),
+          memory: await this.renderedMemory(sessionId, request),
         }),
         { headers: { "Cache-Control": "no-store" } }
       );
@@ -741,13 +765,30 @@ export class PiBridgeHandler {
   }
 
   private activeOperation(request: Request): boolean {
-    const operationId = request.headers.get("X-Pi-Operation-ID");
-    return (
-      this.options.sessions.getSession()?.harness === "pi" &&
-      !!operationId &&
-      (this.options.messages.getProcessingMessage()?.id === operationId ||
-        this.options.controls.isActiveOperation(operationId))
-    );
+    return this.fence(request);
+  }
+
+  /**
+   * The session's pinned memory, rendered for Pi.
+   *
+   * A session that has no memory selection, or that may no longer reach the
+   * partitions it pinned, gets none: the boot context is empty and the
+   * memory tools refuse. An unexpected failure is not swallowed.
+   */
+  private async renderedMemory(
+    sessionId: string,
+    request: Request
+  ): Promise<RenderedSessionMemory | null> {
+    if (!this.options.memory) return null;
+    try {
+      return await this.options.memory.renderedContext({
+        sessionId,
+        requestId: request.headers.get("x-request-id") ?? crypto.randomUUID(),
+      });
+    } catch (cause) {
+      if (cause instanceof MemoryError) return null;
+      throw cause;
+    }
   }
 
   private externalActionOperation(request: Request): string | Response {

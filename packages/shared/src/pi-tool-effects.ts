@@ -1,3 +1,5 @@
+import { harnessMemoryToolName } from "./memory-tools";
+
 /** Where a Pi tool can cause observable work. This is metadata only. */
 export const TOOL_EFFECT_KINDS = [
   "local_read",
@@ -176,6 +178,55 @@ export const PI_BROWSER_TOOL_EFFECT_REGISTRATIONS = [
     callers: ["model"],
     replay: "unsafe",
   },
+] as const satisfies readonly ToolEffectRegistration[];
+
+/**
+ * The cross-session messaging tool.
+ *
+ * It changes something outside the model, so it is owned by the cross-session
+ * policy delegate and authorized by the owning session on every call.
+ */
+/**
+ * The memory tools.
+ *
+ * Their names are the shared contract's own, so the Pi surface and the
+ * sandbox harnesses expose one canonical set. The reads are reads of the
+ * tenant's durable memory, so they are external reads. The write changes
+ * something outside the model — a record other sessions will read — so it is
+ * an external mutation and needs an owning policy delegate; it is not
+ * replay-safe, because an interrupted write that ran again would leave a
+ * second record behind.
+ *
+ * The reads and the write are declared apart, because a deployment that
+ * admits the capability read-only declares the reads alone.
+ */
+export const PI_MEMORY_READ_TOOL_EFFECT_REGISTRATIONS = [
+  {
+    name: harnessMemoryToolName("pi", "memory_read"),
+    effect: "external_read",
+    callers: ["model"],
+    replay: "safe",
+  },
+  {
+    name: harnessMemoryToolName("pi", "memory_search"),
+    effect: "external_read",
+    callers: ["model"],
+    replay: "safe",
+  },
+] as const satisfies readonly ToolEffectRegistration[];
+
+export const PI_MEMORY_WRITE_TOOL_EFFECT_REGISTRATIONS = [
+  {
+    name: harnessMemoryToolName("pi", "memory_write"),
+    effect: "external_mutation",
+    callers: ["model"],
+    replay: "unsafe",
+  },
+] as const satisfies readonly ToolEffectRegistration[];
+
+export const PI_MEMORY_TOOL_EFFECT_REGISTRATIONS = [
+  ...PI_MEMORY_READ_TOOL_EFFECT_REGISTRATIONS,
+  ...PI_MEMORY_WRITE_TOOL_EFFECT_REGISTRATIONS,
 ] as const satisfies readonly ToolEffectRegistration[];
 
 /** Build a lookup while rejecting accidental tool shadowing across extensions. */

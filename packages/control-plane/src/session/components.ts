@@ -62,6 +62,11 @@ import { SessionIndexStore } from "../db/session-index";
 import { TeamMembershipStore } from "../db/team-memberships";
 import { TeamChannelBindingStore } from "../db/team-channel-bindings";
 import { SessionCollaboratorStore } from "../db/session-collaborators";
+import { MemoryRecordStore } from "../db/memory-records";
+import { SessionMemorySelectionStore } from "../db/session-memory-selections";
+import { LexicalFactIndex } from "../db/lexical-fact-index";
+import { createSessionMemoryAccessPolicy } from "../authorization/memory-access-factory";
+import { SessionMemoryService } from "../memory/session-memory-service";
 import { parsePersistedSandboxSettings } from "../sandbox/settings";
 import type { SandboxSettings } from "@open-inspect/shared/types/integrations";
 import { createSourceControlProviderFromEnv, type SourceControlProvider } from "../source-control";
@@ -192,6 +197,8 @@ import { PiRepositoryTools } from "../pi/repository-tools";
 import { createPiDeploymentCapabilitySnapshot } from "../pi/deployment-capabilities";
 import { PiBridgeHandler } from "./http/handlers/pi-bridge.handler";
 import { McpSessionHandler } from "./http/handlers/mcp-session.handler";
+import { PiMemoryHandler } from "./http/handlers/pi-memory.handler";
+import { createPiOperationFence } from "./http/handlers/pi-operation-fence";
 import { BrowserGateway } from "./http/handlers/browser-gateway.handler";
 import {
   McpSessionPinConflictError,
@@ -1264,6 +1271,16 @@ export function createSessionRuntime(platform: SessionPlatform, env: Env): Sessi
     provider: sourceControlProvider,
     observeMaterialization: (event) => log.info("pi.repository_materialization", event),
   });
+  // The tenant's memory, reached the way the sandbox path reaches it: the same
+  // service, the same access policy, over the session's own global store.
+  const piMemoryService = (requestId: string) =>
+    new SessionMemoryService({
+      selections: new SessionMemorySelectionStore(db),
+      records: new MemoryRecordStore(db),
+      factIndex: new LexicalFactIndex(db),
+      access: createSessionMemoryAccessPolicy({ db }),
+      requestId,
+    });
   const piBridgeHandler = new PiBridgeHandler({
     sessions: sessionCoreRepository,
     messages: messageRepository,
@@ -1286,6 +1303,10 @@ export function createSessionRuntime(platform: SessionPlatform, env: Env): Sessi
     media: env.MEDIA_BUCKET,
     repositories: piRepositoryTools,
     diffs: diffService,
+    memory: {
+      renderedContext: ({ sessionId, requestId }) =>
+        piMemoryService(requestId).renderedContext(sessionId),
+    },
     externalActions: {
       // PiSessionDO's durably latched `externalActions` capability controls
       // preparation. SessionDO keeps the gateway reachable so an emergency
@@ -1321,6 +1342,15 @@ export function createSessionRuntime(platform: SessionPlatform, env: Env): Sessi
       },
     },
     getSessionId: getPublicSessionId,
+  });
+  const piMemoryHandler = new PiMemoryHandler({
+    getSessionId: getPublicSessionId,
+    service: piMemoryService,
+    activeOperation: createPiOperationFence({
+      sessions: sessionCoreRepository,
+      messages: messageRepository,
+      controls: piControlRepository,
+    }),
   });
   const piSandboxExecutionHandler = new PiSandboxExecutionHandler({
     execution: piSandboxExecution,
@@ -1587,6 +1617,10 @@ export function createSessionRuntime(platform: SessionPlatform, env: Env): Sessi
     piMcpList: (request) => mcpSessionHandler.list(request),
     mcpPinGrant: (request) => mcpSessionHandler.grantPin(request),
     piMcpRead: (request) => mcpSessionHandler.read(request),
+    piMemoryRead: (request) => piMemoryHandler.read(request),
+    piMemoryWrite: (request) => piMemoryHandler.write(request),
+    piMemorySearch: (request) => piMemoryHandler.search(request),
+    piMemoryAuthorize: (request) => piMemoryHandler.authorizeWrite(request),
     crossSessionInbound: (request) => crossSessionHandler.inbound(request),
     externalActionStatus: (request) => piBridgeHandler.humanExternalActionStatus(request),
     externalActionPending: (request) => piBridgeHandler.externalActionPending(request),

@@ -22,7 +22,7 @@ describe("readPiFeatureCapabilitySnapshot", () => {
 
     await expect(readPiFeatureCapabilitySnapshot(fake.port)).resolves.toBeUndefined();
     expect(PI_LEGACY_FEATURE_CAPABILITY_SNAPSHOT).toEqual({
-      version: 4,
+      version: 5,
       capabilities: {
         scratchWorkspace: "off",
         repositoryEditing: "off",
@@ -32,13 +32,14 @@ describe("readPiFeatureCapabilitySnapshot", () => {
         mcp: "off",
         crossSessionMessaging: "off",
         browser: "off",
+        memory: "off",
       },
     });
   });
 
   it("returns the exact complete durable snapshot", async () => {
     const original = {
-      version: 4,
+      version: 5,
       capabilities: {
         scratchWorkspace: "read_only",
         repositoryEditing: "off",
@@ -48,6 +49,7 @@ describe("readPiFeatureCapabilitySnapshot", () => {
         mcp: "off",
         crossSessionMessaging: "off",
         browser: "off",
+        memory: "off",
       },
     };
     const fake = storage(original);
@@ -71,7 +73,7 @@ describe("readPiFeatureCapabilitySnapshot", () => {
     const fake = storage(original);
 
     await expect(readPiFeatureCapabilitySnapshot(fake.port)).resolves.toEqual({
-      version: 4,
+      version: 5,
       capabilities: {
         scratchWorkspace: "read_only",
         repositoryEditing: "off",
@@ -81,6 +83,7 @@ describe("readPiFeatureCapabilitySnapshot", () => {
         mcp: "off",
         crossSessionMessaging: "off",
         browser: "off",
+        memory: "off",
       },
     });
     // The stored snapshot is left exactly as it was found.

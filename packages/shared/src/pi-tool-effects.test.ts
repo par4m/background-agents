@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { MEMORY_TOOL_NAMES, harnessMemoryToolName } from "./memory-tools";
 import {
   PI_CODEMODE_TOOL_EFFECT_REGISTRATIONS,
+  PI_MEMORY_TOOL_EFFECT_REGISTRATIONS,
   PI_SANDBOX_EXECUTION_TOOL_EFFECT_REGISTRATIONS,
   PI_TOOL_EFFECT_REGISTRY,
   SANDBOX_EXECUTION_TOOL_EFFECT,
@@ -80,5 +82,31 @@ describe("Pi tool effect registry", () => {
         replay: "safe",
       }))
     );
+  });
+
+  it("declares the memory tools under the shared contract's canonical names", () => {
+    const names = PI_MEMORY_TOOL_EFFECT_REGISTRATIONS.map((registration) => registration.name);
+    expect([...names].sort()).toEqual([...MEMORY_TOOL_NAMES].sort());
+    for (const name of MEMORY_TOOL_NAMES) {
+      expect(harnessMemoryToolName("pi", name)).toBe(name);
+    }
+  });
+
+  it("reads memory and writes it under the effect each one has", () => {
+    const byName = new Map(
+      PI_MEMORY_TOOL_EFFECT_REGISTRATIONS.map((registration) => [registration.name, registration])
+    );
+    expect(byName.get("memory_read")).toMatchObject({
+      effect: "external_read",
+      callers: ["model"],
+      replay: "safe",
+    });
+    expect(byName.get("memory_search")).toMatchObject({ effect: "external_read" });
+    // The write changes something outside the model, so it is owned by a policy
+    // delegate, and an interrupted write must not run again.
+    expect(byName.get("memory_write")).toMatchObject({
+      effect: "external_mutation",
+      replay: "unsafe",
+    });
   });
 });

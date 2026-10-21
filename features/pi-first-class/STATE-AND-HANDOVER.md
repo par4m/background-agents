@@ -248,12 +248,13 @@ The call belongs to the session, and the session already holds the resolver:
 **What is left for the shared lane:** the live canary against a real MCP server, with a repo-scoped
 server and a session without that repo, to prove the scope rule holds.
 
-## The four spec features that are still absent, and the seam each one uses
+## The spec features that are still absent, and the seam each one uses
 
-These are **absent, not untested**. Each refuses today rather than half-working, and each has a seam
-that reuses an existing Open-Inspect authority instead of inventing one.
+Each of these refuses today rather than half-working, and each has a seam that reuses an existing
+Open-Inspect authority instead of inventing one. Pi memory tools are no longer in this list: they
+shipped, over the existing D1 memory authority, and are described in `PI-MEMORY-AUDIT.md`.
 
-### 1. Pi memory tools — `memory_read`, `memory_write`, `memory_search`
+### 1. Pi memory tools — `memory_read`, `memory_write`, `memory_search` — **shipped**
 
 The authority already exists and is the same one the sandbox uses: `SessionMemoryService`
 (`packages/control-plane/src/memory/session-memory-service.ts`) with `renderedContext`, `read`,
@@ -267,6 +268,15 @@ The seam: the session's own internal routes, exactly like the other Pi routes, c
 `SessionMemoryService`. The Pi Durable Object is the session's runtime, the same identity the
 sandbox has, so it gets the same access policy. The three Pi tools then call those routes. Nothing
 about the memory model changes, and no memory store is added to Pi.
+
+**What shipped, and what the audit corrected.** The seam above is right, but the Pi Durable Object
+is **not** "the same identity the sandbox has": the sandbox is admitted to the public router by a
+bearer sandbox token, while the Pi Durable Object is admitted by the **Durable Object binding
+address** and the latched session identity in its own storage. The access policy is shared; the
+admission is not, and the Pi path never touches the sandbox-admitted route. The memory service is
+**not** in the SessionDO: it was composed per request in the control-plane router, and it is now
+reached from the session's own runtime over D1. `PI-MEMORY-AUDIT.md` records the whole design, the
+deviations, and the tests.
 
 ### 2. MCP resources and prompts
 

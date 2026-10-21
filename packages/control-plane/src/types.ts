@@ -114,6 +114,7 @@ export interface EnvConfig {
   PI_CROSS_SESSION_MESSAGING_MODE?: string; // New-session admission only
   PI_BROWSER_MODE?: string; // New-session admission only
   PI_BROWSER_ALLOWED_DOMAINS?: string; // Comma-separated hosts the browser may reach
+  PI_MEMORY_MODE?: string; // New-session admission only; "read_only" withholds the memory write
   MCP_CONNECTIONS_ENABLED?: string; // "true" enables staging personal MCP OAuth connections
 
   // Logging

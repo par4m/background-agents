@@ -203,6 +203,10 @@ Rule: tick only with evidence on the same line.
 ### Slice 8: optional integrations and explicit escalation
 
 - [ ] Browser/memory/attachment/escalation scope tests
+- [x] Pi memory tools only — `memory_read`, `memory_write`, `memory_search` over the existing D1
+      memory authority, reached through the session's own internal route; audit, design, deviations,
+      and tests in `features/pi-first-class/PI-MEMORY-AUDIT.md` (browser, attachments, and
+      escalation remain unticked)
 - [ ] Contracts
 - [ ] Authorized capabilities implemented
 - [ ] E2E/security tests
