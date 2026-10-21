@@ -620,11 +620,19 @@ apart again without a test failing.
   documents disagree, the code wins and the document is corrected.
 - Nothing is implemented while an audit of the same area is open. A parallel implementation would
   encode a design the audit has not yet tested.
-- Both `feat/pi-first-class` and `feat/pi-go-live-integration-v2` are at the same commit, so the
-  integration worktree and the main worktree hold identical trees. Continue in
-  `/Users/param/.local/share/opencode/worktree/0e6d72/pi-go-live-v2` on
-  `feat/pi-go-live-integration-v2`, and fast-forward `feat/pi-first-class` to it once the lanes are
-  green. Nothing has been pushed and nothing has been deployed.
+- **There is one branch and one worktree.** `feat/pi-go-live-integration-v2` in
+  `/Users/param/.local/share/opencode/worktree/0e6d72/pi-go-live-v2` is the whole Pi work: every
+  slice, every audit round, and every capability, merged. The slice branches, the mirror branches,
+  and the per-feature worktrees have been retired; their commits are ancestors of this one, so
+  nothing is lost. `origin/main` is merged in, so the branch is current with the upstream.
+- The remote backup is `fork/feat/pi-durable-harness`, which is the branch the (now closed) PR #2431
+  tracked. Push there, to that name, until a fresh pull request is opened.
+- **No stacked pull requests.** The upstream squash-merges, so one branch squashes to one commit on
+  `main`; a stack would buy nothing and cost a base refresh per pull request. When the work is
+  ready, one pull request opens against `main` from this branch.
+- Nothing has been deployed. Every capability defaults off, and the live gates — the Code Mode
+  canary, the MCP canary, the provider canaries, the browser canary, the ten-minute personal canary
+  — are still open.
 - The upstream pull requests stay on `ColeMurray/background-agents`. The `fork` remote is the user's
   own fork; nothing is pushed without explicit authorization.
 - One implementation owner at a time. A capability slice commits once, focused.
