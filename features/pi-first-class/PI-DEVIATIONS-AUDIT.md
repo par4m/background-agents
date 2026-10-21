@@ -1,8 +1,15 @@
 # PI-DEVIATIONS-AUDIT — the open (D) boundary deviations
 
-Branch: `feat/pi-deviations`, off `feat/pi-go-live-integration-v2` (`00dd5f13`, the branch tip when
-the work started — the base moved while this work was in flight, and this branch was rebased onto
-it, so the tree matches the installed Agents SDK 0.29.0).
+Branch: `feat/pi-deviations`, off `feat/pi-go-live-integration-v2`.
+
+The base moved twice while this work was in flight — the Agents SDK 0.28.1 → 0.29.0 upgrade, then a
+merge of `origin/main` and the D1 migration renumbering — and this branch was rebased onto the tip
+both times (`d365dc05`), then merged into `feat/pi-go-live-integration-v2` as `cd1c5554`.
+
+**Every `file:line` below was re-verified against the merged tree** (`619b2c81`, the tip at the time
+of this follow-up, which carries the MCP OAuth lifecycle and the Pi memory tools on top of the
+merge). The tree has moved on since; a reader who finds a line off by a few should take the symbol
+name as the anchor.
 
 Scope: the (D) boundary deviations D4–D8 of [`PI-INTEGRATION-AUDIT.md`](PI-INTEGRATION-AUDIT.md).
 D1, D2 and D3 were already closed and were not touched.
@@ -16,19 +23,19 @@ Durable Object's three table families is a design decision, and the task forbade
 
 Every citation in the audit's (D) section was re-read against this tree. The audit is accurate about
 the _shape_ of every deviation and about three of the five items' details; three details are wrong,
-and they are listed in §6.
+and they are listed in §7.
 
 | The audit says                                                                                                                 | Verified at                                                                                                                                                                                                                                                                                                                                                       | Verdict                                           |
 | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
 | D5: the outboxes create their tables with `CREATE TABLE IF NOT EXISTS` at construction                                         | `packages/control-plane/src/pi/projection-outbox.ts` (was `:17-37`, `:257-258`), `packages/control-plane/src/pi/repository-diff-outbox.ts` (was `:10-21`, `:268`)                                                                                                                                                                                                 | **true**                                          |
-| D5: the SessionDO's registry "does track the Pi migrations by id"                                                              | `packages/control-plane/src/session/schema.ts:1107-1130` (`applyMigrations`), `:1135-1141` (`initSchema`), `packages/shared/src/pi-migration-reservations.ts`                                                                                                                                                                                                     | **true, but for the wrong store** — see §6.1      |
-| D6: delete is honoured; archive and export are not                                                                             | delete: `packages/control-plane/src/routes/session-index.ts:459-480` → `packages/control-plane/src/cloudflare/pi-durable-object.ts:1381` (`destroy`, `deleteAll` at `:1419`); archive: `packages/control-plane/src/session/http/handlers/session-lifecycle.handler.ts:146-182`; export: `packages/control-plane/src/routes/session-export.ts:121-140`, `:361-382` | **true**                                          |
+| D5: the SessionDO's registry "does track the Pi migrations by id"                                                              | `packages/control-plane/src/session/schema.ts:1107-1130` (`applyMigrations`), `:1135-1141` (`initSchema`), `packages/shared/src/pi-migration-reservations.ts`                                                                                                                                                                                                     | **true, but for the wrong store** — see §7.1      |
+| D6: delete is honoured; archive and export are not                                                                             | delete: `packages/control-plane/src/routes/session-index.ts:460-481` → `packages/control-plane/src/cloudflare/pi-durable-object.ts:1432` (`destroy`, `deleteAll` at `:1478`); archive: `packages/control-plane/src/session/http/handlers/session-lifecycle.handler.ts:155-191`; export: `packages/control-plane/src/routes/session-export.ts:122-140`, `:356-377` | **true**                                          |
 | D6: the export is D1-only                                                                                                      | `packages/control-plane/src/db/session-export-store.ts:120-139`, `packages/control-plane/src/session/services/message.service.ts:216-272`                                                                                                                                                                                                                         | **true**                                          |
-| D6: the Pi DO has a read surface (`lookup`, `status`)                                                                          | `packages/control-plane/src/cloudflare/pi-runtime-dispatch.ts:23-25`                                                                                                                                                                                                                                                                                              | **true, and it is not the transcript** — see §6.2 |
+| D6: the Pi DO has a read surface (`lookup`, `status`)                                                                          | `packages/control-plane/src/cloudflare/pi-runtime-dispatch.ts:23-25`                                                                                                                                                                                                                                                                                              | **true, and it is not the transcript** — see §7.2 |
 | D7: `mcp_read` accepts either a `connectionId` or a `serverId`                                                                 | `packages/control-plane/src/pi/mcp-extension.ts` (was `:63-75`), `packages/shared/src/types/mcp-read.ts:111-133`                                                                                                                                                                                                                                                  | **true**                                          |
-| D7: the shared lane uses the deployment's credential and the session's `repo_scope`; the personal lane uses one person's OAuth | `packages/control-plane/src/session/http/handlers/mcp-session.handler.ts:219-325` (shared), `:327-419` (personal)                                                                                                                                                                                                                                                 | **true**                                          |
-| D8: the Pi control route requires `collaborate` for the write actions                                                          | `packages/control-plane/src/routes/pi-controls.ts` (was `:85-92`)                                                                                                                                                                                                                                                                                                 | **half true** — see §6.3                          |
-| D4: three table families share one SQLite database inside `PiSessionDO`                                                        | see §5                                                                                                                                                                                                                                                                                                                                                            | **true**                                          |
+| D7: the shared lane uses the deployment's credential and the session's `repo_scope`; the personal lane uses one person's OAuth | `packages/control-plane/src/session/http/handlers/mcp-session.handler.ts:219-325` (shared), `:327-420` (personal)                                                                                                                                                                                                                                                 | **true**                                          |
+| D8: the Pi control route requires `collaborate` for the write actions                                                          | `packages/control-plane/src/routes/pi-controls.ts:101-108` (the two gates; the action sets were `:45-46` before this change)                                                                                                                                                                                                                                      | **half true** — see §7.3                          |
+| D4: three table families share one SQLite database inside `PiSessionDO`                                                        | see §6                                                                                                                                                                                                                                                                                                                                                            | **true**                                          |
 
 ---
 
@@ -46,7 +53,7 @@ tables exist rather than creating them.
 - `packages/shared/src/pi-migration-reservations.ts`: a third migration store, `"pi_do"`, with
   `PI_DO_OUTBOX_MIGRATION_ID = 1` and `PI_DO_REPOSITORY_DIFF_OUTBOX_MIGRATION_ID = 2`, reserved for
   `piProjection` and `repositoryEditing`.
-- `packages/control-plane/src/cloudflare/pi-durable-object.ts:256-263`: the constructor applies the
+- `packages/control-plane/src/cloudflare/pi-durable-object.ts:274-281`: the constructor applies the
   migrations once per activation, before any writer can reach a table.
 - `packages/control-plane/src/pi/projection-outbox.ts` and
   `packages/control-plane/src/pi/repository-diff-outbox.ts`: the runtime
@@ -58,10 +65,10 @@ tables exist rather than creating them.
 The SessionDO's registry is applied to the **SessionDO's** database
 (`packages/control-plane/src/cloudflare/durable-object.ts:11`, `:58` →
 `initSchema(this.platform.storage.sql)`). The outbox tables are in the **Pi Durable Object's**
-database (`packages/control-plane/src/cloudflare/pi-durable-object.ts:297-302`,
+database (`packages/control-plane/src/cloudflare/pi-durable-object.ts:315-320`,
 `this.ctx.storage.sql`). Moving the tables into the SessionDO's database would move their _writer_ —
 the Pi DO projects its own events, and the projection outbox exists so that a delivery failure keeps
-the event queued on the side that produced it. That is a design change, not a migration, and §6.1
+the event queued on the side that produced it. That is a design change, not a migration, and §7.1
 explains why I did not make it.
 
 The new registry follows the repo's pattern exactly: numbered ids, an `_schema_migrations` tracking
@@ -103,14 +110,14 @@ contract allows".
 **The existing export contract does not allow (a) as the audit describes it.**
 
 - The export's carrier is one NDJSON line per session
-  (`packages/shared/src/types/trace-export.ts:31-70`), holding the D1 index projection plus at most
+  (`packages/shared/src/types/trace-export.ts:60-99`), holding the D1 index projection plus at most
   three trace collections read from the **SessionDO's** own storage
-  (`packages/control-plane/src/session/contracts.ts:26-46`,
+  (`packages/control-plane/src/session/contracts.ts:31-52`,
   `packages/control-plane/src/session/services/message.service.ts:216-272`). There is no carrier for
   a second object's state, and adding one is a new shared schema field plus a new collection in
   `sessionTraceIncludeSchema` — a contract change, not a wiring change.
 - The Pi DO's read surface the audit names is not the transcript. `lookup` returns one operation's
-  status (`packages/control-plane/src/cloudflare/pi-durable-object.ts:903-924`) and `status` returns
+  status (`packages/control-plane/src/cloudflare/pi-durable-object.ts:954-975`) and `status` returns
   `{busy, pending}` (`:931-938`). The transcript and the task graph are reachable through the Pi
   DO's _control_ read actions — `list_conversations` (`:943`), `inspect` (`:962`), `task_graph`
   (`:977`), `get_conversation` (`:1004`) — and `get_conversation` returns only entry ids and kinds
@@ -127,17 +134,17 @@ the hard requirement — an export never looks complete while omitting the agent
 **The export states the gap.** `packages/shared/src/types/trace-export.ts`: a new
 `traceExportHarnessStateSchema` (`{included: false, reason: string}`) on the session line, plus
 `PI_HARNESS_STATE_NOT_EXPORTED`, the Pi Durable Object's own words about what it keeps.
-`packages/control-plane/src/routes/session-export.ts:121-134`: a Pi session line carries
+`packages/control-plane/src/routes/session-export.ts:122-134`: a Pi session line carries
 `harnessState`; no other harness does. The published JSON Schema was regenerated
 (`docs/schemas/trace-export.v2.schema.json`) and `docs/TRACE_EXPORT.md` documents the field. The
 field is **additive inside schema 2** — the doc's own rule is "Additive fields can arrive within a
-major schema version; consumers must ignore unknown fields" (`docs/TRACE_EXPORT.md:103-111`) — so
+major schema version; consumers must ignore unknown fields" (`docs/TRACE_EXPORT.md:124-131`) — so
 the schema version did not change.
 
 **The archive preserves the record.** `packages/control-plane/src/pi/runtime-contract.ts`:
 `PiRuntimeDispatch` gained `preserveForArchive(sessionId)`, and
 `packages/control-plane/src/cloudflare/pi-runtime-dispatch.ts` adapts it.
-`packages/control-plane/src/cloudflare/pi-durable-object.ts:1359-1379` implements it:
+`packages/control-plane/src/cloudflare/pi-durable-object.ts:1410-1430` implements it:
 
 - the agent stops working (`harness.abort`), but only when the harness is already open — a cold
   object has no live code to abort, and opening its harness would make the archive depend on
@@ -147,14 +154,14 @@ the schema version did not change.
   operations are drained. A delivery that fails stays in the outbox, where the projector's own job
   retries it, so a provider outage never blocks an archive.
 
-`packages/control-plane/src/session/http/handlers/session-lifecycle.handler.ts:146-192` calls it for
+`packages/control-plane/src/session/http/handlers/session-lifecycle.handler.ts:155-192` calls it for
 a Pi session, alongside the existing sandbox preservation (a Pi session that also has an execution
-sandbox preserves both). `packages/control-plane/src/session/components.ts:1374-1396` wires it to
+sandbox preserves both). `packages/control-plane/src/session/components.ts:1404-1426` wires it to
 the session's own `PI_SESSION` port.
 
 Nothing durable is deleted by any of this: the conversation, the task graph, the compaction
 boundaries and the workspace files stay where they are. Delete still wipes the object
-(`packages/control-plane/src/cloudflare/pi-durable-object.ts:1381-1424`).
+(`packages/control-plane/src/cloudflare/pi-durable-object.ts:1432-1478`).
 
 ### Tests
 
@@ -178,19 +185,19 @@ boundaries and the workspace files stay where they are. Delete still wipes the o
 - `packages/shared/src/pi-tool-effects.ts`: `PI_MCP_TOOL_EFFECT_REGISTRATIONS` is now
   `mcp_read_shared` and `mcp_read_connection`, both `external_read` / `callers: ["model"]` /
   `replay: "safe"`. The assembler enforces that a declaration has a tool and a tool has a
-  declaration (`packages/control-plane/src/pi/extension-assembler.ts:185-198`), so the two sides
+  declaration (`packages/control-plane/src/pi/extension-assembler.ts:186-199`), so the two sides
   move together.
 - `packages/control-plane/src/pi/mcp-extension.ts`: two tools. Each names **exactly one** target,
   and the target is _required_ in the tool's parameters: `mcp_read_shared` takes `serverId`,
   `mcp_read_connection` takes `connectionId`. The "exactly one target" rule therefore holds at the
   tool boundary, not only at the server boundary (`packages/shared/src/types/mcp-read.ts:131-133`,
   kept as the second line of defence).
-- `packages/control-plane/src/pi/event-translator.ts:370-378`: the timeline's redacted-output list
+- `packages/control-plane/src/pi/event-translator.ts:378-386`: the timeline's redacted-output list
   carries both new names beside the old one.
 
 The SessionDO's read handler is unchanged: it still re-validates both lanes and still returns a
 bounded, credential-free result
-(`packages/control-plane/src/session/http/handlers/mcp-session.handler.ts:195-419`). No new scope,
+(`packages/control-plane/src/session/http/handlers/mcp-session.handler.ts:195-420`). No new scope,
 no new credential kind, no new auth path.
 
 ### Tests
@@ -260,8 +267,8 @@ One SQLite file, three families, three writers, three migration systems.
 | Family                         | Tables                                                                                                                                                               | Writer                                                      | Where the write happens                                                                                                               | Its own migrations?                                                                                        |
 | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | Pi Durable's own runtime state | `pi_durable_schema`, `pi_durable_metadata`, `pi_record_ids`, `pi_conversations`, `pi_entries`, `pi_tasks`, `pi_submissions`, `pi_documents`, `pi_document_revisions` | `agents`/`pi-durable`, through the harness's storage handle | `node_modules/agents/dist/harness/pi/index.js:324` (`openPiSessionStore(this.lifecycle.storage)`), `:29` (the `pi_` prefix), `:31-32` | **yes** — `node_modules/@earendil-works/pi-durable/dist/storage/sqlite/migrations.js:1-80`                 |
-| The Computer VFS               | `vfs_meta`, `vfs_nodes`, `vfs_dirents`, `vfs_blobs`, `vfs_blob_bytes`, `vfs_chunks` (+ the `_vfs_*` bookkeeping tables)                                              | `@cloudflare/computer`, over the same object storage        | opened at `packages/control-plane/src/cloudflare/pi-durable-object.ts:1448-1450` (`new Workspace({storage: this.ctx.storage …})`)     | **yes** — `node_modules/@cloudflare/computer/dist/index.js:94-137` and its `MIGRATIONS` list at `:243-291` |
-| Open-Inspect's Pi outboxes     | `oi_pi_projection_outbox`, `oi_pi_projection_finalization`, `oi_pi_repository_diff_outbox`                                                                           | this repo's outboxes                                        | `packages/control-plane/src/cloudflare/pi-durable-object.ts:297-302` (`this.ctx.storage.sql`)                                         | **now yes** — D5's registry, `packages/control-plane/src/pi/schema.ts`                                     |
+| The Computer VFS               | `vfs_meta`, `vfs_nodes`, `vfs_dirents`, `vfs_blobs`, `vfs_blob_bytes`, `vfs_chunks` (+ the `_vfs_*` bookkeeping tables)                                              | `@cloudflare/computer`, over the same object storage        | opened at `packages/control-plane/src/cloudflare/pi-durable-object.ts:1499-1501` (`new Workspace({storage: this.ctx.storage …})`)     | **yes** — `node_modules/@cloudflare/computer/dist/index.js:94-137` and its `MIGRATIONS` list at `:243-291` |
+| Open-Inspect's Pi outboxes     | `oi_pi_projection_outbox`, `oi_pi_projection_finalization`, `oi_pi_repository_diff_outbox`                                                                           | this repo's outboxes                                        | `packages/control-plane/src/cloudflare/pi-durable-object.ts:315-320` (`this.ctx.storage.sql`)                                         | **now yes** — D5's registry, `packages/control-plane/src/pi/schema.ts`                                     |
 
 So the honest statement of the deviation is: **each table already has exactly one writer**, and —
 after D5 — each family has its own tracked migrations. What is shared is the _file_. The audit's
@@ -273,8 +280,8 @@ The remaining blast radius is the one the audit names: a failure that affects th
 volume, a corrupt page, a long-running write) affects the transcript, the audit trail and the
 model-written workspace together. The model-writable part is already bounded — the scratch area is
 capped at 8 MiB and 1 000 entries (`packages/control-plane/src/pi/computer-workspace-quota.ts:8-9`,
-`:104-238`) — but the repository overlay is written through the raw workspace handle, not through
-that quota (`packages/control-plane/src/cloudflare/pi-durable-object.ts:1487-1490`), and the SQLite
+`:104-239`) — but the repository overlay is written through the raw workspace handle, not through
+that quota (`packages/control-plane/src/cloudflare/pi-durable-object.ts:1532`), and the SQLite
 file's own capacity is the deployment's, not the agent's.
 
 ### 6.2 The options, and the single-tenant tension
@@ -282,11 +289,11 @@ file's own capacity is the deployment's, not the agent's.
 **Option A — give the VFS its own Durable Object.** The agent's writable bytes never share a file
 with the transcript. Cost: a new DO class and a new namespace binding
 (`packages/control-plane/src/index.ts:26` exports the classes;
-`terraform/environments/production/workers-control-plane.tf:243-249` declares them), a second
+`terraform/environments/production/workers-control-plane.tf:228-232` declares them), a second
 Terraform deploy phase for the new binding (`enable_durable_object_bindings = false`, then `true`,
 per `AGENTS.md`), the workspace tools would have to cross a Durable Object boundary on every read
 and write, and the new object needs its own SQLite migration tag
-(`control_plane_new_sqlite_classes`, `terraform/environments/production/variables.tf:983-987`).
+(`control_plane_new_sqlite_classes`, `terraform/environments/production/variables.tf:965-969`).
 _Single-tenant tension:_ Open-Inspect is single-tenant, so every Pi session currently costs one
 SessionDO **and** one PiSessionDO; a third object per session doubles the object count and the
 per-session failure surface for a deployment that has one tenant and one deployment-wide credential.
@@ -335,7 +342,7 @@ The audit says the tables should move "into the SessionDO's numbered migration r
 migration registry, which does track the Pi migrations by id" (`:350-353`).
 
 They cannot go there without moving their writer. The outbox tables live in the **Pi Durable
-Object's** SQLite (`packages/control-plane/src/cloudflare/pi-durable-object.ts:297-302`), and the
+Object's** SQLite (`packages/control-plane/src/cloudflare/pi-durable-object.ts:315-320`), and the
 SessionDO's registry is applied to the SessionDO's own storage
 (`packages/control-plane/src/cloudflare/durable-object.ts:58`). The audit's own §6 paragraph says
 the alternative fix is "to put the `oi_pi_*` outboxes in the SessionDO's database" (`:341-343`) —
@@ -353,21 +360,23 @@ The audit's parenthetical — "there is one: `lookup` and `status` on
 `packages/control-plane/src/cloudflare/pi-runtime-dispatch.ts:23-25`" — names two methods that
 return one operation's status and a `{busy, pending}` pair. The transcript and the task graph are
 behind the _control_ read actions, and `get_conversation` returns entry ids and kinds, not content
-(`packages/control-plane/src/cloudflare/pi-durable-object.ts:1004-1018`). So option (a) is not
+(`packages/control-plane/src/cloudflare/pi-durable-object.ts:1055-1069`). So option (a) is not
 "extend the export with the Pi DO's existing read surface"; it is "add a new Pi-side read surface
 that returns the transcript, and decide what to do with the VFS". That is a new primitive, and I
 stopped there and took (b).
 
 ### 7.3 D8: `reset`, `handoff` and `cancel_exact` were already on `lifecycle`
 
+(The line numbers in this section are the ones **before** this change; the file moved afterwards.)
+
 The audit says the Pi control route "requires `requireSession("collaborate")` for the write actions
 (`packages/control-plane/src/routes/pi-controls.ts:85-92`), and the same route admits `fork`,
 `reset`, `handoff`, `compact`, `steer`, `follow_up` and `cancel_exact`"
 (`PI-INTEGRATION-AUDIT.md:415-420`). At HEAD the route already had two gates: `collaborate` for
 `send`, `steer`, `follow_up`, `fork`, `compact`, and `lifecycle` for `cancel_exact`, `reset`,
-`handoff` (`packages/control-plane/src/routes/pi-controls.ts:45-46`, `:85-93`). The live gap was
-`fork` and `compact` — the two actions that create or rewrite a durable conversation — and those are
-what I moved.
+`handoff` (`packages/control-plane/src/routes/pi-controls.ts:45-46` and `:85-93` before this change;
+the two admit gates are now `:101-108`). The live gap was `fork` and `compact` — the two actions
+that create or rewrite a durable conversation — and those are what I moved.
 
 The audit's proposed fix ("give the agent-lifecycle actions their own permission") would have added
 a permission. `sessions.lifecycle` already is that permission, and the sandbox harness's own
@@ -376,11 +385,12 @@ stop/archive/diff routes already require it, so I used it rather than inventing 
 ### 7.4 The audit's Pi Durable Object binding list is stale
 
 The audit's inventory says the Pi DO's bindings are "`SESSION`, `CODEMODE_SANDBOX`, `BROWSER`
-(`packages/control-plane/src/cloudflare/pi-durable-object.ts:167`)" (`PI-INTEGRATION-AUDIT.md:58`).
-At HEAD the type is `Pick<WorkerBindings, "SESSION" | "CODEMODE_SANDBOX">`
-(`packages/control-plane/src/cloudflare/pi-durable-object.ts:177`) — there is no `BROWSER` binding,
+(`packages/control-plane/src/cloudflare/pi-durable-object.ts:167`, the audit's own line number)"
+(`PI-INTEGRATION-AUDIT.md:58`). At HEAD the type is
+`Pick<WorkerBindings, "SESSION" | "CODEMODE_SANDBOX">`
+(`packages/control-plane/src/cloudflare/pi-durable-object.ts:195`) — there is no `BROWSER` binding,
 deliberately: "There is no browser binding here on purpose: the browser belongs to the owning
-session" (`packages/control-plane/src/cloudflare/pi-durable-object.ts:169-175`). This does not
+session" (`packages/control-plane/src/cloudflare/pi-durable-object.ts:188-195`). This does not
 change any conclusion; it is recorded because the audit is the document the next reader will check.
 
 ---
@@ -407,8 +417,9 @@ change any conclusion; it is recorded because the audit is the document the next
   Both are re-openable and both are released by `destroy`; closing them on archive would be a
   behaviour change I could not justify from the code, so I left them.
 - **The SDK version moved under the work.** The branch was created from `95ea8054` and rebased onto
-  `00dd5f13`, which upgraded the Agents SDK from 0.28.1 to 0.29.0. The tests below ran on 0.29.0. I
-  did not re-run anything against 0.28.1.
+  `00dd5f13` (which upgraded the Agents SDK from 0.28.1 to 0.29.0) and onto `d365dc05` (which merged
+  `origin/main` and renumbered the D1 migrations). The tests below ran on the rebased tree, against
+  Agents SDK 0.29.0. I did not re-run anything against 0.28.1.
 
 ---
 
@@ -420,10 +431,10 @@ main worktree's. Two consequences are recorded below.
 | Lane                       | Command                                                | Result                                                                                |
 | -------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------- |
 | shared build               | `npm run build -w @open-inspect/shared`                | **pass**                                                                              |
-| shared tests               | `npm test -w @open-inspect/shared`                     | **pass** — 63 files, 1 314 tests                                                      |
+| shared tests               | `npm test -w @open-inspect/shared`                     | **pass** — 63 files, 1 328 tests                                                      |
 | typecheck, every workspace | `npm run typecheck`                                    | **pass**                                                                              |
-| control-plane unit lane    | `npm test -w @open-inspect/control-plane`              | **pass** — 339 files, 5 443 tests, 1 skipped; **one environment-only failure**, below |
-| control-plane workerd lane | `npx vitest run --config vitest.integration.config.ts` | **pass** — 175 files, 2 483 tests, 1 skipped                                          |
+| control-plane unit lane    | `npm test -w @open-inspect/control-plane`              | **pass** — 339 files, 5 415 tests, 1 skipped; **one environment-only failure**, below |
+| control-plane workerd lane | `npx vitest run --config vitest.integration.config.ts` | **pass** — 175 files, 2 485 tests, 1 skipped                                          |
 | web tests                  | `npm test -w @open-inspect/web`                        | **pass** — 231 of 233 files; two unrelated files time out, see below                  |
 | lint                       | `npm run lint:fix`                                     | **pass**                                                                              |
 | format                     | `npx prettier --write` on the changed files            | **pass**                                                                              |
@@ -452,4 +463,4 @@ did for comparison. None of the failing files imports the one web file I touched
 The first two integration runs failed with `spawn Unknown system error -88` from the Cloudflare test
 pool: the workerd workers could not be spawned, because the web suite was running concurrently on
 the same machine (the first run) and because the run was killed by the machine (the second). Re-run
-on its own with `--maxWorkers=3`, the lane is green: 175 files, 2 483 tests, exit 0.
+on its own with `--maxWorkers=3`, the lane is green: 175 files, 2 485 tests, exit 0.
