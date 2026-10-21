@@ -155,7 +155,7 @@ describe("Pi migration reservations", () => {
         {
           store: "d1",
           version: PI_D1_EXTERNAL_ACTIONS_MIGRATION_VERSION,
-          name: "0090_external_actions.sql",
+          name: "0091_external_actions.sql",
         },
         {
           store: "d1",
@@ -213,7 +213,7 @@ describe("Pi migration reservations", () => {
         {
           store: "d1",
           version: PI_D1_EXTERNAL_ACTIONS_MIGRATION_VERSION,
-          name: "0090_external_actions.sql",
+          name: "0091_external_actions.sql",
         },
       ])
     ).toThrow("Reserved d1 migration artifact 90 must declare feature externalActions");
@@ -223,7 +223,7 @@ describe("Pi migration reservations", () => {
         {
           store: "d1",
           version: PI_D1_EXTERNAL_ACTIONS_MIGRATION_VERSION,
-          name: "0090_external_actions.sql",
+          name: "0091_external_actions.sql",
           feature: "externalActions",
         },
       ])

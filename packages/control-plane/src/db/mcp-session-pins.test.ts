@@ -31,7 +31,7 @@ describe("McpSessionPinStore", () => {
       INSERT INTO users VALUES ('owner-1', NULL), ('other-1', NULL);
       INSERT INTO mcp_servers VALUES ('server-1', 3, 'Docs', 'remote', 'https://mcp.example.com/mcp', '{}', '{}', NULL, 1, 1000, 1000);
     `);
-    for (const migration of ["0091_mcp_oauth_foundation.sql", "0094_mcp_session_pins.sql"]) {
+    for (const migration of ["0092_mcp_oauth_foundation.sql", "0095_mcp_session_pins.sql"]) {
       sqlite.exec(
         readFileSync(
           fileURLToPath(

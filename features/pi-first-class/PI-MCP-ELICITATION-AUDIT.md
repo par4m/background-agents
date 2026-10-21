@@ -307,7 +307,7 @@ This matches the repo's own record: "**MCP elicitation.** No handler, route, or 
    is an external action that a person approves"
    (`packages/control-plane/src/pi/mcp-extension.ts:38-45`), and the reviewed catalog structurally
    refuses mutations: the executable snapshot accepts only `effect = 'external_read'`
-   (`terraform/d1/migrations/0091_mcp_oauth_foundation.sql`,
+   (`terraform/d1/migrations/0092_mcp_oauth_foundation.sql`,
    `mcp_connection_tool_snapshots.effect CHECK (effect = 'external_read')`).
 
 ### 4.1 The two caveats that must travel with the classification
@@ -376,7 +376,7 @@ Two candidate mechanisms, both new:
 boundary rule requires the _current_ authority, not the authority at read time):
 
 - Private lane: the answer should come from the **connection's owner**
-  (`mcp_session_pins.owner_user_id`, `terraform/d1/migrations/0094_mcp_session_pins.sql`), because
+  (`mcp_session_pins.owner_user_id`, `terraform/d1/migrations/0095_mcp_session_pins.sql`), because
   that is the identity the provider sees. The current decision rule
   (`sessionRequirement("collaborate")` + `external_actions.approve`,
   `routes/session-external-actions.ts:83-95`) does not express that.

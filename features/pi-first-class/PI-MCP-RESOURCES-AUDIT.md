@@ -14,7 +14,7 @@ the review surface need a new kind?
 
 **1.1 The review surface is per server _revision_, and tool-shaped everywhere**
 
-- Review table `mcp_reviewed_tools` — `terraform/d1/migrations/0091_mcp_oauth_foundation.sql:26-41`.
+- Review table `mcp_reviewed_tools` — `terraform/d1/migrations/0092_mcp_oauth_foundation.sql:26-41`.
 - The review is the row set for one `(server_id, server_revision)`, replaced wholesale on each write
   (`:92` DELETE, `:94-118` INSERT) and refused if the server moved
   (`packages/control-plane/src/db/mcp-server-reviews.ts:83-87`).
@@ -56,11 +56,11 @@ the review surface need a new kind?
   `getOwned` (`:187-196`) and `findOwnedByServer` (`:207-218`) funnel through it, and the session's
   grant list calls `getOwned` (`packages/control-plane/src/session/components.ts:799`).
 - The invariant the pin protects: `mcp-connections.ts:56-61`; `0091:43-44`;
-  `terraform/d1/migrations/0094_mcp_session_pins.sql:3-6`.
+  `terraform/d1/migrations/0095_mcp_session_pins.sql:3-6`.
 
 **1.3 The grant's stored hash and where it is compared**
 
-- Stored at `mcp_session_pins.catalog_snapshot_sha256` (`0094_mcp_session_pins.sql:15`); the granted
+- Stored at `mcp_session_pins.catalog_snapshot_sha256` (`0095_mcp_session_pins.sql:15`); the granted
   names are a JSON array in `tool_names` (`:19`).
 - Compared **at grant time only**: `packages/control-plane/src/db/mcp-session-pins.ts:99-115` —
   `connection.catalog_snapshot_sha256 !== input.catalogSnapshotSha256` → _"The MCP connection

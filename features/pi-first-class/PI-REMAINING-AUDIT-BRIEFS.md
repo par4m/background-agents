@@ -88,7 +88,7 @@ and proves the bytes never cross into Pi's storage unencrypted.
 - `packages/control-plane/src/db/mcp-server-reviews.ts` — the review flow and `mcp_reviewed_tools`.
 - `packages/control-plane/src/db/mcp-connections.ts` — the catalog snapshot hash and the reviewed
   read-only projection.
-- `terraform/d1/migrations/0091_mcp_oauth_foundation.sql` — the review table's shape.
+- `terraform/d1/migrations/0092_mcp_oauth_foundation.sql` — the review table's shape.
 - The MCP SDK client's `readResource` and prompt surface
   (`node_modules/@modelcontextprotocol/client`).
 

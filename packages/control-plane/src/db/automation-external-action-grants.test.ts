@@ -31,7 +31,7 @@ describe("AutomationExternalActionGrantStore", () => {
     sqlite.exec(
       readFileSync(
         fileURLToPath(
-          new URL("../../../../terraform/d1/migrations/0090_external_actions.sql", import.meta.url)
+          new URL("../../../../terraform/d1/migrations/0091_external_actions.sql", import.meta.url)
         ),
         "utf8"
       )
