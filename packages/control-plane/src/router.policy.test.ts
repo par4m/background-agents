@@ -39,11 +39,11 @@ describe("route policy table", () => {
   });
 
   it("publishes the complete canonical route catalog", () => {
-    expect(routes).toHaveLength(266);
+    expect(routes).toHaveLength(267);
 
     const paths = routes.map((route) => route.path);
-    expect(new Set(paths).size).toBe(205);
-    expect(new Set(routes.map((route) => `${route.method}:${route.path}`)).size).toBe(266);
+    expect(new Set(paths).size).toBe(206);
+    expect(new Set(routes.map((route) => `${route.method}:${route.path}`)).size).toBe(267);
     expect(routeFor("GET", "/capabilities")).toMatchObject({
       authentication: { kind: "public" },
       authorization: { kind: "none" },
@@ -84,6 +84,13 @@ describe("route policy table", () => {
       authorization: { allOf: [{ kind: "session", action: "collaborate" }] },
     });
     expect(routeFor("POST", "/mcp-connections")).toMatchObject({
+      authentication: { kind: "user" },
+      authorization: { kind: "active-self" },
+      cacheControl: "private, no-store",
+    });
+    // The owner's own authorization of a connection is the owner's act on
+    // their own account, so the same self authority decides.
+    expect(routeFor("POST", "/mcp-connections/mcpconn_1/authorize")).toMatchObject({
       authentication: { kind: "user" },
       authorization: { kind: "active-self" },
       cacheControl: "private, no-store",

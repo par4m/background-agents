@@ -183,6 +183,54 @@ export default defineConfig({
               }
               throw new Error("Unexpected xAI integration-test credential");
             }
+            if (url.href === "https://mcp.example.com/mcp") {
+              // A protected MCP server: the broker has to discover the
+              // authorization server before the owner can approve it.
+              return new Response("Unauthorized", {
+                status: 401,
+                headers: {
+                  "WWW-Authenticate":
+                    'Bearer resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource"',
+                },
+              });
+            }
+            if (url.href === "https://mcp.example.com/.well-known/oauth-protected-resource") {
+              return Response.json({
+                resource: "https://mcp.example.com/mcp",
+                authorization_servers: ["https://auth.example.com"],
+              });
+            }
+            if (url.href === "https://auth.example.com/.well-known/oauth-authorization-server") {
+              return Response.json({
+                issuer: "https://auth.example.com",
+                authorization_endpoint: "https://auth.example.com/authorize",
+                token_endpoint: "https://auth.example.com/token",
+                registration_endpoint: "https://auth.example.com/register",
+                response_types_supported: ["code"],
+                grant_types_supported: ["authorization_code", "refresh_token"],
+                code_challenge_methods_supported: ["S256"],
+                token_endpoint_auth_methods_supported: ["none"],
+                scopes_supported: ["mcp:read", "offline_access"],
+              });
+            }
+            if (url.href === "https://auth.example.com/register") {
+              const body = (await request.json()) as { redirect_uris?: string[] };
+              return Response.json({
+                client_id: "integration-mcp-client",
+                redirect_uris: body.redirect_uris ?? [],
+              });
+            }
+            if (url.href === "https://auth.example.com/token") {
+              const body = await request.text();
+              if (!body.includes("integration-code")) {
+                throw new Error("Unexpected MCP integration-test authorization code");
+              }
+              return Response.json({
+                access_token: "integration-access-token",
+                refresh_token: "integration-refresh-token",
+                token_type: "Bearer",
+              });
+            }
             throw new Error(`Unexpected outbound request: ${request.url}`);
           },
           queueProducers: ["IMAGE_BUILD_FINALIZATION_QUEUE"],
@@ -206,6 +254,10 @@ export default defineConfig({
             PROVIDER_ACCOUNTS_ENCRYPTION_KEY: generateTestEncryptionKey(),
             MCP_OAUTH_ENCRYPTION_KEY: generateTestEncryptionKey(),
             MCP_CONNECTIONS_ENABLED: "true",
+            // The MCP broker's callback URL is built from the worker's own
+            // public origin, and the callback is only recognized when it
+            // matches the origin the owner is actually sent back to.
+            WORKER_URL: "https://test.local",
             DEPLOYMENT_NAME: "integration-test",
             MODAL_API_SECRET: "test-modal-api-secret",
             MODAL_WORKSPACE: "test-workspace",

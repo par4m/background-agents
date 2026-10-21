@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   updateMcpServer: vi.fn(),
   createMcpConnection: vi.fn(),
   deleteMcpConnection: vi.fn(),
+  authorizeMcpConnection: vi.fn(),
   mutateConnections: vi.fn(),
   connectionFeatureEnabled: false,
   connections: [] as Array<{
@@ -47,6 +48,7 @@ vi.mock("@/hooks/use-mcp-connections", () => ({
   }),
   createMcpConnection: mocks.createMcpConnection,
   deleteMcpConnection: mocks.deleteMcpConnection,
+  authorizeMcpConnection: mocks.authorizeMcpConnection,
 }));
 vi.mock("@/hooks/use-current-user-authorization", () => ({
   useCurrentUserAuthorization: () => ({
@@ -92,13 +94,11 @@ describe("McpServersSettings", () => {
   it("shows the dormant connection foundation without implying OAuth is available", () => {
     render(<McpServersSettings />);
 
-    expect(screen.getByText("Dormant personal connections")).toBeInTheDocument();
+    expect(screen.getByText("Personal MCP connections")).toBeInTheDocument();
     expect(screen.getByText(/foundation is dormant/i)).toBeInTheDocument();
     expect(screen.queryByText(/oauth/i)).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /stage dormant connection/i })
-    ).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /connect oauth/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add a connection/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /authorize/i })).not.toBeInTheDocument();
   });
 
   it("stages only catalog-selected personal connections when the foundation is enabled", async () => {
@@ -107,10 +107,77 @@ describe("McpServersSettings", () => {
     const user = userEvent.setup();
     render(<McpServersSettings />);
 
-    await user.click(screen.getByRole("button", { name: "Stage dormant connection for Server A" }));
+    await user.click(screen.getByRole("button", { name: "Add a connection for Server A" }));
 
     expect(mocks.createMcpConnection).toHaveBeenCalledWith({ serverId: "server-a" });
     await waitFor(() => expect(mocks.mutateConnections).toHaveBeenCalled());
+  });
+
+  it("tells the owner when a connection is waiting for their approval", async () => {
+    mocks.connectionFeatureEnabled = true;
+    mocks.connections = [
+      {
+        id: "connection-a",
+        serverId: "server-a",
+        serverName: "Server A",
+        endpointHost: "a.example.com",
+        status: "oauth_authorizing",
+        tools: [],
+      },
+    ];
+    const user = userEvent.setup();
+    render(<McpServersSettings />);
+
+    expect(screen.getByText(/waiting for your approval/i)).toBeInTheDocument();
+
+    mocks.authorizeMcpConnection.mockResolvedValue({ state: "authenticating" });
+    await user.click(screen.getByRole("button", { name: "Authorize Server A" }));
+
+    expect(mocks.authorizeMcpConnection).toHaveBeenCalledWith("connection-a", {
+      reconnect: false,
+    });
+  });
+
+  it("offers a reconnect that replaces a credential the provider refused", async () => {
+    mocks.connectionFeatureEnabled = true;
+    mocks.connections = [
+      {
+        id: "connection-a",
+        serverId: "server-a",
+        serverName: "Server A",
+        endpointHost: "a.example.com",
+        status: "failed",
+        tools: [],
+      },
+    ];
+    mocks.authorizeMcpConnection.mockResolvedValue({ state: "authenticating" });
+    const user = userEvent.setup();
+    render(<McpServersSettings />);
+
+    expect(screen.getByText(/could not connect/i)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Authorize Server A" }));
+
+    expect(mocks.authorizeMcpConnection).toHaveBeenCalledWith("connection-a", {
+      reconnect: true,
+    });
+  });
+
+  it("shows an authorized connection without an approval action", () => {
+    mocks.connectionFeatureEnabled = true;
+    mocks.connections = [
+      {
+        id: "connection-a",
+        serverId: "server-a",
+        serverName: "Server A",
+        endpointHost: "a.example.com",
+        status: "oauth_ready",
+        tools: [],
+      },
+    ];
+    render(<McpServersSettings />);
+
+    expect(screen.getByText(/authorized/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Authorize Server A" })).not.toBeInTheDocument();
   });
 
   it("shows servers but no mutation entry points with read-only permission", () => {

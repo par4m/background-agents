@@ -3,7 +3,7 @@ import { env, runInDurableObject, SELF } from "cloudflare:test";
 import type { McpConnectionDO } from "../../src/cloudflare/mcp-connection-durable-object";
 import { buildServiceAuthHeaders } from "@open-inspect/shared/service-auth";
 import { cleanD1Tables } from "./cleanup";
-import { serviceFetch, sqlDatabase } from "./helpers";
+import { serviceFetch, serviceRequestHeaders, sqlDatabase } from "./helpers";
 import {
   D1McpOAuthStorage,
   EncryptedMcpOAuthClientProvider,
@@ -100,7 +100,7 @@ describe("personal MCP connections API", () => {
       connectionId: connection.id,
       ownerUserId: "11111111111111111111111111111111",
       transportCacheEntries: 0,
-      reason: "Live MCP transport is not enabled",
+      reason: "The MCP transport has not been opened yet",
     });
     await expect(
       runInMcpConnectionDO(broker, async (_instance, state) => ({
@@ -501,5 +501,181 @@ describe("personal MCP connections API", () => {
     );
 
     await expect(swappedStorage.get(row.storage_key)).rejects.toThrow();
+  });
+
+  it("surfaces the server's authorization URL to the owner and records that it is waiting", async () => {
+    const server = await createRemoteServer();
+    const created = await serviceFetch("https://test.local/mcp-connections", {
+      method: "POST",
+      body: JSON.stringify({ serverId: server.id }),
+    });
+    const connection = await created.json<McpConnectionMetadata>();
+
+    const response = await serviceFetch(
+      `https://test.local/mcp-connections/${connection.id}/authorize`,
+      { method: "POST", body: JSON.stringify({}) }
+    );
+
+    expect(response.status).toBe(200);
+    const authorization = await response.json<{ state: string; authUrl?: string }>();
+    expect(authorization.state).toBe("authenticating");
+    // The server's own authorization URL, and nothing that could be a
+    // credential.
+    expect(authorization.authUrl).toContain("https://auth.example.com/authorize");
+    expect(authorization.authUrl).not.toContain("access_token");
+    expect(authorization.authUrl).not.toContain("refresh_token");
+    // The durable record says the connection is waiting for its owner.
+    const status = await env.DB.prepare("SELECT status FROM mcp_connections WHERE id = ?")
+      .bind(connection.id)
+      .first<{ status: string }>();
+    expect(status?.status).toBe("oauth_authorizing");
+    // The owner's own view of the connection says the same thing.
+    const listed = await serviceFetch("https://test.local/mcp-connections");
+    await expect(listed.json<{ connections: McpConnectionMetadata[] }>()).resolves.toMatchObject({
+      connections: [expect.objectContaining({ id: connection.id, status: "oauth_authorizing" })],
+    });
+    // Asking again gives the owner a URL they can still use: the provider's
+    // state is single-use and short-lived, so a stale URL would fail.
+    const again = await serviceFetch(
+      `https://test.local/mcp-connections/${connection.id}/authorize`,
+      { method: "POST", body: JSON.stringify({}) }
+    );
+    const second = await again.json<{ state: string; authUrl?: string }>();
+    expect(second.state).toBe("authenticating");
+    expect(new URL(second.authUrl ?? "").searchParams.get("state")).not.toBe(
+      new URL(authorization.authUrl ?? "").searchParams.get("state")
+    );
+  });
+
+  it("refuses to let anybody but the owner authorize a connection", async () => {
+    const server = await createRemoteServer();
+    const created = await serviceFetch("https://test.local/mcp-connections", {
+      method: "POST",
+      body: JSON.stringify({ serverId: server.id }),
+      as: { userId: OWNER_A, role: "member" },
+    });
+    const connection = await created.json<McpConnectionMetadata>();
+
+    const otherOwner = await serviceFetch(
+      `https://test.local/mcp-connections/${connection.id}/authorize`,
+      { method: "POST", body: JSON.stringify({}), as: { userId: OWNER_B, role: "member" } }
+    );
+    expect(otherOwner.status).toBe(404);
+
+    const servicePrincipal = await buildServiceAuthHeaders({
+      service: "slack-bot",
+      secret: "test-service-secret-slack-bot",
+      method: "POST",
+      url: `https://test.local/mcp-connections/${connection.id}/authorize`,
+      actor: "slack:U123",
+    });
+    const viaService = await SELF.fetch(
+      `https://test.local/mcp-connections/${connection.id}/authorize`,
+      { method: "POST", headers: servicePrincipal }
+    );
+    expect(viaService.status).toBe(403);
+
+    // Nothing the other owner tried changed the connection.
+    const status = await env.DB.prepare("SELECT status FROM mcp_connections WHERE id = ?")
+      .bind(connection.id)
+      .first<{ status: string }>();
+    expect(status?.status).toBe("foundation_staged");
+  });
+
+  it("completes the owner's approval and keeps the credential encrypted", async () => {
+    const server = await createRemoteServer();
+    const created = await serviceFetch("https://test.local/mcp-connections", {
+      method: "POST",
+      body: JSON.stringify({ serverId: server.id }),
+    });
+    const connection = await created.json<McpConnectionMetadata>();
+    const started = await serviceFetch(
+      `https://test.local/mcp-connections/${connection.id}/authorize`,
+      { method: "POST", body: JSON.stringify({}) }
+    );
+    const authorization = await started.json<{ state: string; authUrl?: string }>();
+    const state = new URL(authorization.authUrl ?? "").searchParams.get("state");
+    expect(state).toBeTruthy();
+
+    const callbackUrl = `https://test.local/mcp/oauth/callback/${connection.id}?code=integration-code&state=${encodeURIComponent(
+      state ?? ""
+    )}`;
+    const callback = await SELF.fetch(callbackUrl, {
+      method: "GET",
+      headers: await serviceRequestHeaders(callbackUrl, { method: "GET" }),
+      redirect: "manual",
+    });
+
+    expect(callback.status).toBe(302);
+    expect(callback.headers.get("Location")).toBe(
+      "https://app.test.local/settings?tab=mcp-servers"
+    );
+    const status = await env.DB.prepare("SELECT status FROM mcp_connections WHERE id = ?")
+      .bind(connection.id)
+      .first<{ status: string }>();
+    expect(status?.status).toBe("oauth_ready");
+    // The credential is stored encrypted, and only for this connection.
+    const rows = await env.DB.prepare(
+      "SELECT ciphertext FROM mcp_oauth_storage WHERE connection_id = ?"
+    )
+      .bind(connection.id)
+      .all<{ ciphertext: string }>();
+    expect(rows.results.length).toBeGreaterThan(0);
+    for (const row of rows.results ?? []) {
+      expect(row.ciphertext).not.toContain("integration-access-token");
+      expect(row.ciphertext).not.toContain("integration-refresh-token");
+    }
+    // The owner's own view of the connection says it is authorized.
+    const listed = await serviceFetch("https://test.local/mcp-connections");
+    await expect(listed.json<{ connections: McpConnectionMetadata[] }>()).resolves.toMatchObject({
+      connections: [expect.objectContaining({ id: connection.id, status: "oauth_ready" })],
+    });
+  });
+
+  it("replaces a credential the provider refused when the owner reconnects", async () => {
+    const server = await createRemoteServer();
+    const created = await serviceFetch("https://test.local/mcp-connections", {
+      method: "POST",
+      body: JSON.stringify({ serverId: server.id }),
+    });
+    const connection = await created.json<McpConnectionMetadata>();
+    const started = await serviceFetch(
+      `https://test.local/mcp-connections/${connection.id}/authorize`,
+      { method: "POST", body: JSON.stringify({}) }
+    );
+    const authorization = await started.json<{ state: string; authUrl?: string }>();
+    const state = new URL(authorization.authUrl ?? "").searchParams.get("state");
+    const callbackUrl = `https://test.local/mcp/oauth/callback/${connection.id}?code=integration-code&state=${encodeURIComponent(
+      state ?? ""
+    )}`;
+    await SELF.fetch(callbackUrl, {
+      method: "GET",
+      headers: await serviceRequestHeaders(callbackUrl, { method: "GET" }),
+      redirect: "manual",
+    });
+    const stored = await env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM mcp_oauth_storage WHERE connection_id = ?"
+    )
+      .bind(connection.id)
+      .first<{ count: number }>();
+    expect(stored?.count).toBeGreaterThan(0);
+    const storage = new D1McpOAuthStorage(
+      sqlDatabase(env.DB),
+      requireMcpOAuthEncryptionKey(env),
+      connection.id
+    );
+    const keysBefore = [...(await storage.list({ prefix: "/open-inspect-mcp/" })).keys()];
+    expect(keysBefore.some((key) => key.endsWith("/token"))).toBe(true);
+
+    const reconnected = await serviceFetch(
+      `https://test.local/mcp-connections/${connection.id}/authorize`,
+      { method: "POST", body: JSON.stringify({ reconnect: true }) }
+    );
+    const result = await reconnected.json<{ state: string; authUrl?: string }>();
+    expect(result.state).toBe("authenticating");
+    // The owner's explicit act discarded the credential the provider refused:
+    // the token is gone, and only the new handshake's material is left.
+    const keysAfter = [...(await storage.list({ prefix: "/open-inspect-mcp/" })).keys()];
+    expect(keysAfter.some((key) => key.endsWith("/token"))).toBe(false);
   });
 });

@@ -1,4 +1,8 @@
 import { z } from "zod";
+import type {
+  McpConnectionAuthorization,
+  McpConnectionTransportState,
+} from "@open-inspect/shared/types/integrations";
 
 /**
  * The MCP broker's control-plane port.
@@ -8,10 +12,12 @@ import { z } from "zod";
  * generic "call anything" entry point: a call must name a reviewed tool.
  */
 export interface McpConnectionBrokerStatus {
+  /** Whether the connection can be read through right now. */
   enabled: boolean;
   connectionId: string;
   ownerUserId: string;
   transportCacheEntries: number;
+  /** A human-readable account of the transport's state. */
   reason: string;
   /**
    * Where the owner must go to finish the server's authorization.
@@ -21,7 +27,7 @@ export interface McpConnectionBrokerStatus {
    */
   authUrl?: string;
   /** The state of the connection to the server. */
-  state?: "authenticating" | "connected" | "ready" | "failed";
+  state?: McpConnectionTransportState;
 }
 
 /** One reviewed read-only tool call. */
@@ -51,6 +57,23 @@ export interface McpBrokerCallResult {
 export interface McpConnectionBrokerDispatch {
   initialize(connectionId: string, ownerUserId: string): Promise<void>;
   status(connectionId: string): Promise<McpConnectionBrokerStatus>;
+  /**
+   * Make one connection usable for its owner.
+   *
+   * The broker opens the transport against the reviewed endpoint and, when the
+   * server wants the owner's approval, returns the server's own authorization
+   * URL so the owner can grant it. The credential stays in the broker: the
+   * owner receives a URL, never a token.
+   *
+   * `reconnect` is the owner's explicit act: it discards the stored credential
+   * and starts a fresh authorization, which is the only way a credential the
+   * provider has refused can be replaced.
+   */
+  authorize(
+    connectionId: string,
+    ownerUserId: string,
+    options?: { reconnect?: boolean }
+  ): Promise<McpConnectionAuthorization>;
   /**
    * Read one reviewed tool.
    *
