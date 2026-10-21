@@ -5,6 +5,7 @@
 import type { ConfidenceLevel } from "@open-inspect/shared/types/repository-catalog";
 import type { HarnessId } from "@open-inspect/shared/harnesses";
 import type { ControlPlaneFetcher } from "@open-inspect/shared/service-auth";
+import type { ClassificationEnv } from "@open-inspect/shared/classification";
 import type { SlackCompletionJob } from "./completion/job";
 import type { SlackIngressJob } from "./ingress-authority";
 // targets.ts is a pure leaf (types + policy functions, no I/O), so the types
@@ -21,7 +22,7 @@ interface SlackIngressQueue {
 /**
  * Cloudflare Worker environment bindings.
  */
-export interface Env {
+export interface Env extends ClassificationEnv {
   // KV namespace
   SLACK_KV: KVNamespace;
 
@@ -38,7 +39,6 @@ export interface Env {
   WEB_APP_URL: string;
   DEFAULT_MODEL: string;
   CLASSIFICATION_MODEL: string;
-  CLASSIFICATION_REASONING_EFFORT?: string; // OpenAI classifiers only; unset keeps the model default
   APP_NAME?: string;
   PI_DURABLE_ENABLED?: string;
   PI_SLACK_DURABLE_INGRESS_ENABLED?: string;
@@ -47,14 +47,6 @@ export interface Env {
   SLACK_BOT_TOKEN: string;
   SLACK_SIGNING_SECRET: string;
   SLACK_APP_TOKEN?: string;
-  /**
-   * Classifier provider credentials. The deployment binds exactly the one
-   * `CLASSIFICATION_MODEL` selects, so each is optional on its own and the
-   * classifier guards the branch it needs.
-   */
-  ANTHROPIC_API_KEY?: string;
-  OPENAI_API_KEY?: string;
-  BEDROCK_API_KEY?: string;
   CONTROL_PLANE_API_KEY?: string;
   SERVICE_AUTH_SECRET?: string; // Per-service sig1 signing secret; also verifies CP callbacks
   LOG_LEVEL?: string;
