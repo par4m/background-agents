@@ -39,7 +39,7 @@ describe("Pi migration reservations", () => {
       PI_D1_SLACK_MAPPING_MIGRATION_VERSION,
       PI_D1_CROSS_SESSION_MESSAGING_MIGRATION_VERSION,
       PI_D1_MCP_READ_PROJECTION_MIGRATION_VERSION,
-    ]).toEqual([58, 59, 60, 61, 62, 63, 64, 65, 66, 90, 91, 92, 95, 93, 94]);
+    ]).toEqual([58, 59, 60, 61, 62, 63, 64, 65, 66, 91, 92, 93, 96, 94, 95]);
     expect(PI_MIGRATION_RESERVATIONS).toEqual([
       {
         store: "session_do",
@@ -155,15 +155,15 @@ describe("Pi migration reservations", () => {
         {
           store: "d1",
           version: PI_D1_EXTERNAL_ACTIONS_MIGRATION_VERSION,
-          name: "0091_external_actions.sql",
+          name: "0092_external_actions.sql",
         },
         {
           store: "d1",
           version: PI_D1_EXTERNAL_ACTIONS_MIGRATION_VERSION,
-          name: "0090_other.sql",
+          name: "0091_other.sql",
         },
       ])
-    ).toThrow("Duplicate d1 migration artifact 90");
+    ).toThrow("Duplicate d1 migration artifact 91");
   });
 
   it("rejects wrong, swapped, and unreserved feature claims", () => {
@@ -213,17 +213,17 @@ describe("Pi migration reservations", () => {
         {
           store: "d1",
           version: PI_D1_EXTERNAL_ACTIONS_MIGRATION_VERSION,
-          name: "0091_external_actions.sql",
+          name: "0092_external_actions.sql",
         },
       ])
-    ).toThrow("Reserved d1 migration artifact 90 must declare feature externalActions");
+    ).toThrow("Reserved d1 migration artifact 91 must declare feature externalActions");
 
     expect(() =>
       validateMigrationArtifacts([
         {
           store: "d1",
           version: PI_D1_EXTERNAL_ACTIONS_MIGRATION_VERSION,
-          name: "0091_external_actions.sql",
+          name: "0092_external_actions.sql",
           feature: "externalActions",
         },
       ])
