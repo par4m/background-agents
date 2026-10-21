@@ -37,8 +37,8 @@ function harness(initial?: McpConnectionMetadata) {
     async findOwnedByServer() {
       return row ?? null;
     },
-    async getOwnedForSaga(id) {
-      return row?.id === id ? row : null;
+    async getOwnedForSaga(id, ownerUserId) {
+      return row?.id === id && ownerUserId === OWNER ? row : null;
     },
     async create() {
       events.push("d1:create");
@@ -70,6 +70,10 @@ function harness(initial?: McpConnectionMetadata) {
       brokerDestroyed = true;
       if (destroyFailureAfterCleanup) throw destroyFailureAfterCleanup;
     },
+    async authorize(connectionId: string, ownerUserId: string, options?: { reconnect?: boolean }) {
+      events.push(`do:authorize:${connectionId}:${ownerUserId}:${options?.reconnect === true}`);
+      return { state: "authenticating" as const, authUrl: "https://auth.example.com/authorize" };
+    },
   };
   return {
     saga: new McpConnectionSaga(authority, broker),
@@ -92,6 +96,19 @@ function harness(initial?: McpConnectionMetadata) {
 }
 
 describe("MCP connection saga", () => {
+  it("authorizes only a connection the owner owns, and passes the owner's own reconnect choice", async () => {
+    const test = harness(connection("mcpconn_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+
+    await expect(test.saga.authorize(OWNER, test.row()!.id)).resolves.toEqual({
+      state: "authenticating",
+      authUrl: "https://auth.example.com/authorize",
+    });
+    expect(test.events).toEqual([`do:authorize:${test.row()!.id}:${OWNER}:false`]);
+
+    await expect(test.saga.authorize("someone-else", test.row()!.id)).resolves.toBeNull();
+    await expect(test.saga.authorize(OWNER, "mcpconn_unknown")).resolves.toBeNull();
+  });
+
   it("checkpoints revocation before closing transport, clearing OAuth, tombstoning, and deleting D1", async () => {
     const test = harness(connection("mcpconn_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 

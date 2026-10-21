@@ -50,6 +50,21 @@ export class McpConnectionValidationError extends Error {}
 export class McpConnectionConflictError extends Error {}
 const MCP_READ_EFFECT = "external_read" satisfies ToolEffectKind;
 
+/**
+ * The transport states the broker may record.
+ *
+ * The owner's lifecycle states (`foundation_staged`, `revoking`) belong to the
+ * saga. The transport states belong to the broker, because the broker is the
+ * only component that observes them.
+ */
+export const MCP_TRANSPORT_STATUSES = [
+  "transport_ready",
+  "oauth_authorizing",
+  "oauth_ready",
+  "failed",
+] as const;
+export type McpTransportStatus = (typeof MCP_TRANSPORT_STATUSES)[number];
+
 function hasStaticCredentials(raw: string): boolean {
   return raw !== "" && raw !== "{}" && raw !== "null";
 }
@@ -235,6 +250,29 @@ export class McpConnectionStore {
         "DELETE FROM mcp_connections WHERE id = ? AND owner_user_id = ? AND status = 'revoking'"
       )
       .bind(id, ownerUserId)
+      .run();
+    return (result.meta?.changes ?? 0) > 0;
+  }
+
+  /**
+   * Record the transport state of one connection.
+   *
+   * The write is owner-scoped, so one owner can never record a state on
+   * another owner's connection. It never overwrites a revocation in flight:
+   * a late transport event cannot resurrect a connection the owner is
+   * removing.
+   */
+  async setTransportStatus(
+    id: string,
+    ownerUserId: string,
+    status: McpTransportStatus
+  ): Promise<boolean> {
+    const result = await this.db
+      .prepare(
+        `UPDATE mcp_connections SET status = ?, updated_at = ?
+         WHERE id = ? AND owner_user_id = ? AND status <> 'revoking'`
+      )
+      .bind(status, Date.now(), id, ownerUserId)
       .run();
     return (result.meta?.changes ?? 0) > 0;
   }

@@ -3,6 +3,7 @@ import { useAuthSession } from "@/lib/auth-session";
 import { browserApiFetch } from "@/lib/browser-api-fetch";
 import type {
   CreateMcpConnectionRequest,
+  McpConnectionAuthorization,
   McpConnectionMetadata,
   McpConnectionsResponse,
 } from "@open-inspect/shared/types/integrations";
@@ -43,4 +44,27 @@ export async function deleteMcpConnection(id: string): Promise<void> {
     const error = await response.json().catch(() => ({}));
     throw new Error(error.error || "Failed to remove dormant MCP connection");
   }
+}
+
+/**
+ * Ask the server to make one of the caller's own connections usable.
+ *
+ * The answer carries the server's own authorization URL when the server is
+ * waiting for the owner's approval. It is a URL, not a credential, so the
+ * browser may follow it.
+ */
+export async function authorizeMcpConnection(
+  id: string,
+  options?: { reconnect?: boolean }
+): Promise<McpConnectionAuthorization> {
+  const response = await browserApiFetch(`${MCP_CONNECTIONS_KEY}/${id}/authorize`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reconnect: options?.reconnect === true }),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || "Failed to start the MCP authorization");
+  }
+  return response.json();
 }

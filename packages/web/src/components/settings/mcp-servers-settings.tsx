@@ -4,6 +4,7 @@ import { useState, useCallback, type ClipboardEvent } from "react";
 import { toast } from "sonner";
 import type {
   CreateMcpServerRequest,
+  McpConnectionMetadata,
   McpServerMetadata,
 } from "@open-inspect/shared/types/integrations";
 import { DEFAULT_MCP_SERVER_ENABLED } from "@open-inspect/shared/types/integrations";
@@ -14,6 +15,7 @@ import {
   deleteMcpServer,
 } from "@/hooks/use-mcp-servers";
 import {
+  authorizeMcpConnection,
   createMcpConnection,
   deleteMcpConnection,
   useMcpConnections,
@@ -444,8 +446,25 @@ function McpServerForm({
   );
 }
 
+/**
+ * How one connection's durable state reads to its owner.
+ *
+ * The wording is the owner's, not the store's: a person is told what they
+ * have to do next, not which enum the row happens to hold.
+ */
+const CONNECTION_STATUS_LABELS: Record<string, string> = {
+  foundation_staged: "Not authorized yet",
+  oauth_authorizing: "Waiting for your approval",
+  oauth_ready: "Authorized",
+  transport_ready: "Connected",
+  failed: "Could not connect",
+  revoking: "Being removed",
+  revoked: "Removed",
+};
+
 function PersonalMcpConnections({ servers }: { servers: McpServerMetadata[] }) {
   const { enabled, connections, loading, mutate } = useMcpConnections();
+  const [authorizingId, setAuthorizingId] = useState<string | null>(null);
   const connectedServerIds = new Set(connections.map((connection) => connection.serverId));
   const eligibleServers = servers.filter(
     (server) =>
@@ -459,11 +478,9 @@ function PersonalMcpConnections({ servers }: { servers: McpServerMetadata[] }) {
     try {
       await createMcpConnection({ serverId: server.id });
       await mutate();
-      toast.success("Dormant MCP connection staged");
+      toast.success("MCP connection added");
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to stage dormant MCP connection"
-      );
+      toast.error(error instanceof Error ? error.message : "Failed to add the MCP connection");
     }
   }
 
@@ -471,18 +488,44 @@ function PersonalMcpConnections({ servers }: { servers: McpServerMetadata[] }) {
     try {
       await deleteMcpConnection(id);
       await mutate();
-      toast.success("Dormant MCP connection removed");
+      toast.success("MCP connection removed");
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to remove dormant MCP connection"
+      toast.error(error instanceof Error ? error.message : "Failed to remove the MCP connection");
+    }
+  }
+
+  /**
+   * Start the server's authorization.
+   *
+   * The server answers with its own authorization URL, which the owner visits
+   * to grant the access. The URL is a URL: no credential ever reaches this
+   * page.
+   */
+  async function authorize(connection: McpConnectionMetadata, reconnect: boolean) {
+    setAuthorizingId(connection.id);
+    try {
+      const result = await authorizeMcpConnection(connection.id, { reconnect });
+      if (result.authUrl) {
+        window.location.assign(result.authUrl);
+        return;
+      }
+      await mutate();
+      toast.success(
+        result.state === "failed"
+          ? "The MCP server could not be reached"
+          : "The MCP connection is authorized"
       );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to start the MCP authorization");
+    } finally {
+      setAuthorizingId(null);
     }
   }
 
   return (
     <section className="mt-8 border-t border-border pt-6" aria-labelledby="personal-mcp-heading">
       <h3 id="personal-mcp-heading" className="text-base font-medium text-foreground">
-        Dormant personal connections
+        Personal MCP connections
       </h3>
       {!enabled ? (
         <p className="mt-1 text-sm text-muted-foreground">
@@ -492,8 +535,8 @@ function PersonalMcpConnections({ servers }: { servers: McpServerMetadata[] }) {
       ) : (
         <div className="mt-3 space-y-3">
           <p className="text-sm text-muted-foreground">
-            Stage a credential-free catalog snapshot for your account. Transport, authorization, and
-            tool execution remain disabled until separate canary gates are complete.
+            A personal connection carries your own access to an MCP server. Authorize it once, and
+            only the tools the server&rsquo;s catalog review already approved are ever read.
           </p>
           {loading ? (
             <p className="text-sm text-muted-foreground">Loading personal connections...</p>
@@ -509,19 +552,38 @@ function PersonalMcpConnections({ servers }: { servers: McpServerMetadata[] }) {
                       {connection.serverName}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {connection.endpointHost} · {connection.status} · {connection.tools.length}{" "}
-                      reviewed read-only tools
+                      {connection.endpointHost} ·{" "}
+                      {CONNECTION_STATUS_LABELS[connection.status] ?? connection.status} ·{" "}
+                      {connection.tools.length} reviewed read-only tools
                     </p>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="xs"
-                    onClick={() => remove(connection.id)}
-                    aria-label={`Remove dormant connection for ${connection.serverName}`}
-                  >
-                    Remove
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {needsAuthorization(connection.status) && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        disabled={authorizingId === connection.id}
+                        onClick={() => authorize(connection, connection.status === "failed")}
+                        aria-label={`Authorize ${connection.serverName}`}
+                      >
+                        {authorizingId === connection.id
+                          ? "Authorizing..."
+                          : connection.status === "failed"
+                            ? "Reconnect"
+                            : "Authorize"}
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      onClick={() => remove(connection.id)}
+                      aria-label={`Remove connection for ${connection.serverName}`}
+                    >
+                      Remove
+                    </Button>
+                  </div>
                 </div>
               ))}
               {eligibleServers.map((server) => (
@@ -531,9 +593,9 @@ function PersonalMcpConnections({ servers }: { servers: McpServerMetadata[] }) {
                   variant="outline"
                   size="sm"
                   onClick={() => stage(server)}
-                  aria-label={`Stage dormant connection for ${server.name}`}
+                  aria-label={`Add a connection for ${server.name}`}
                 >
-                  Stage {server.name}
+                  Add {server.name}
                 </Button>
               ))}
               {connections.length === 0 && eligibleServers.length === 0 && (
@@ -547,6 +609,11 @@ function PersonalMcpConnections({ servers }: { servers: McpServerMetadata[] }) {
       )}
     </section>
   );
+}
+
+/** Whether the owner still has to approve this connection. */
+function needsAuthorization(status: string): boolean {
+  return status === "foundation_staged" || status === "oauth_authorizing" || status === "failed";
 }
 
 /**
