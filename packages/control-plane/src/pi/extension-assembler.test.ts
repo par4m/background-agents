@@ -101,6 +101,7 @@ describe("assemblePiExtensions", () => {
       "mcp",
       "cross_session",
       "browser",
+      "memory",
     ]);
     expect(assembled.extensions.map(({ name }) => name)).toEqual([
       "open-inspect.tool-policy",

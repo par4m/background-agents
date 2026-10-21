@@ -2,6 +2,7 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 import {
   FEATURE_CAPABILITY_MODES,
   PI_FEATURE_CAPABILITY_SNAPSHOT_LEGACY_VERSION,
+  PI_FEATURE_CAPABILITY_SNAPSHOT_PRE_MEMORY_VERSION,
   PI_FEATURE_CAPABILITY_SNAPSHOT_RENAMED_VERSION,
   PI_FEATURE_CAPABILITY_SNAPSHOT_VERSION,
   PI_FEATURE_IDS,
@@ -23,6 +24,7 @@ describe("Pi feature capability contracts", () => {
       "mcp",
       "crossSessionMessaging",
       "browser",
+      "memory",
     ]);
   });
 
@@ -36,6 +38,7 @@ describe("Pi feature capability contracts", () => {
       mcp: "off",
       crossSessionMessaging: "off",
       browser: "off",
+      memory: "off",
     } as const satisfies PiFeatureCapabilityMatrix;
 
     expectTypeOf(matrix).toMatchTypeOf<PiFeatureCapabilityMatrix>();
@@ -59,6 +62,7 @@ describe("Pi feature capability contracts", () => {
       mcp: "off",
       crossSessionMessaging: "off",
       browser: "off",
+      memory: "off",
     });
   });
 
@@ -74,9 +78,9 @@ describe("Pi feature capability contracts", () => {
   it("creates one validated versioned snapshot for durable per-session latching", () => {
     const snapshot = createPiFeatureCapabilitySnapshot({ scratchWorkspace: "read_only" });
 
-    expect(PI_FEATURE_CAPABILITY_SNAPSHOT_VERSION).toBe(4);
+    expect(PI_FEATURE_CAPABILITY_SNAPSHOT_VERSION).toBe(5);
     expect(snapshot).toEqual({
-      version: 4,
+      version: 5,
       capabilities: {
         scratchWorkspace: "read_only",
         repositoryEditing: "off",
@@ -86,9 +90,42 @@ describe("Pi feature capability contracts", () => {
         mcp: "off",
         crossSessionMessaging: "off",
         browser: "off",
+        memory: "off",
       },
     });
     expect(piFeatureCapabilitySnapshotSchema.parse(snapshot)).toEqual(snapshot);
+  });
+
+  it("reads a snapshot written before the memory capability with the new feature closed", () => {
+    const preMemory = {
+      version: PI_FEATURE_CAPABILITY_SNAPSHOT_PRE_MEMORY_VERSION,
+      capabilities: {
+        scratchWorkspace: "enabled",
+        repositoryEditing: "enabled",
+        codeMode: "off",
+        sandboxExecution: "off",
+        externalActions: "off",
+        mcp: "off",
+        crossSessionMessaging: "off",
+        browser: "off",
+      },
+    };
+
+    expect(piFeatureCapabilitySnapshotSchema.parse(preMemory)).toEqual({
+      version: 5,
+      capabilities: {
+        scratchWorkspace: "enabled",
+        repositoryEditing: "enabled",
+        codeMode: "off",
+        sandboxExecution: "off",
+        externalActions: "off",
+        mcp: "off",
+        crossSessionMessaging: "off",
+        browser: "off",
+        // A feature that did not exist cannot have been enabled.
+        memory: "off",
+      },
+    });
   });
 
   it("reads a snapshot written before cross-session messaging with the new feature closed", () => {
@@ -105,7 +142,7 @@ describe("Pi feature capability contracts", () => {
     };
 
     expect(piFeatureCapabilitySnapshotSchema.parse(legacy)).toEqual({
-      version: 4,
+      version: 5,
       capabilities: {
         // The rename never changes what a session may do.
         scratchWorkspace: "enabled",
@@ -117,6 +154,7 @@ describe("Pi feature capability contracts", () => {
         // A feature that did not exist cannot have been enabled.
         crossSessionMessaging: "off",
         browser: "off",
+        memory: "off",
       },
     });
   });
@@ -136,7 +174,7 @@ describe("Pi feature capability contracts", () => {
     };
 
     expect(piFeatureCapabilitySnapshotSchema.parse(renamed)).toEqual({
-      version: 4,
+      version: 5,
       capabilities: {
         scratchWorkspace: "enabled",
         repositoryEditing: "off",
@@ -146,6 +184,7 @@ describe("Pi feature capability contracts", () => {
         mcp: "off",
         crossSessionMessaging: "enabled",
         browser: "off",
+        memory: "off",
       },
     });
   });

@@ -187,7 +187,7 @@ describe("PiSessionDO", () => {
       "SELECT pi_feature_capability_snapshot FROM session"
     );
     expect(JSON.parse(rows[0]!.pi_feature_capability_snapshot)).toEqual({
-      version: 4,
+      version: 5,
       capabilities: {
         scratchWorkspace: "enabled",
         repositoryEditing: "enabled",
@@ -199,6 +199,7 @@ describe("PiSessionDO", () => {
         mcp: "off",
         crossSessionMessaging: "off",
         browser: "off",
+        memory: "off",
       },
     });
   });
@@ -309,6 +310,49 @@ describe("PiSessionDO", () => {
     // slot is refused by the assembler, so a duplicate never reaches a
     // session.
     expect(tools.filter((name) => name === "message_session")).toHaveLength(1);
+  });
+
+  it("installs the memory tools only when the capability admits them", async () => {
+    const toolNames = async (mode: string) => {
+      const { sessionName } = await initSession({
+        harness: "pi",
+        model: "openai/gpt-5.6-sol",
+        repoOwner: null,
+        repoName: null,
+        repoId: null,
+        configureSessionEnv: (sessionEnv) => {
+          sessionEnv.PI_WORKSPACE_MODE = "off";
+          sessionEnv.PI_REPOSITORY_EDITING_MODE = "off";
+          sessionEnv.PI_CODE_MODE = "off";
+          sessionEnv.PI_SANDBOX_EXECUTION_MODE = "off";
+          sessionEnv.PI_EXTERNAL_ACTIONS_MODE = "off";
+          sessionEnv.PI_MCP_MODE = "off";
+          sessionEnv.PI_MEMORY_MODE = mode;
+        },
+      });
+      await piStub(sessionName).status(sessionName);
+      return runInPiSessionDO(piStub(sessionName), async (instance) => {
+        const root = await (await instance.harness.pi()).root(BACKGROUND_CONTEXT);
+        return (await root.agent(BACKGROUND_CONTEXT)).tools.map(({ name }) => name);
+      });
+    };
+
+    const enabled = await toolNames("enabled");
+    const readOnly = await toolNames("read_only");
+    const off = await toolNames("off");
+
+    // A full capability admits the reads and the write; a read-only
+    // capability admits the reads alone; an off capability admits nothing.
+    expect(enabled.filter((name) => name.startsWith("memory_"))).toEqual([
+      "memory_read",
+      "memory_search",
+      "memory_write",
+    ]);
+    expect(readOnly.filter((name) => name.startsWith("memory_"))).toEqual([
+      "memory_read",
+      "memory_search",
+    ]);
+    expect(off.filter((name) => name.startsWith("memory_"))).toEqual([]);
   });
 
   it("keeps an all-off creation snapshot after deployment flags enable before first prompt", async () => {
@@ -1073,7 +1117,7 @@ describe("PiSessionDO", () => {
         state.storage.get(PI_FEATURE_CAPABILITY_SNAPSHOT_KEY)
       )
     ).resolves.toEqual({
-      version: 4,
+      version: 5,
       capabilities: {
         scratchWorkspace: "enabled",
         repositoryEditing: "enabled",
@@ -1085,6 +1129,7 @@ describe("PiSessionDO", () => {
         mcp: "off",
         crossSessionMessaging: "off",
         browser: "off",
+        memory: "off",
       },
     });
   });
@@ -1651,7 +1696,7 @@ describe("PiSessionDO", () => {
         state.storage.get(PI_FEATURE_CAPABILITY_SNAPSHOT_KEY)
       )
     ).resolves.toEqual({
-      version: 4,
+      version: 5,
       capabilities: {
         scratchWorkspace: "enabled",
         repositoryEditing: "enabled",
@@ -1663,6 +1708,7 @@ describe("PiSessionDO", () => {
         mcp: "off",
         crossSessionMessaging: "off",
         browser: "off",
+        memory: "off",
       },
     });
     await expect(

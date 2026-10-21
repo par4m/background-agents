@@ -22,6 +22,7 @@ export const PI_FEATURE_IDS = [
   "mcp",
   "crossSessionMessaging",
   "browser",
+  "memory",
 ] as const;
 
 export type PiFeatureId = (typeof PI_FEATURE_IDS)[number];
@@ -35,7 +36,16 @@ export type PiFeatureCapabilityMatrix = FeatureCapabilityMatrix<PiFeatureId>;
 
 export type PiFeatureCapabilityInput = Partial<Readonly<Record<PiFeatureId, string | undefined>>>;
 
-export const PI_FEATURE_CAPABILITY_SNAPSHOT_VERSION = 4 as const;
+export const PI_FEATURE_CAPABILITY_SNAPSHOT_VERSION = 5 as const;
+
+/**
+ * The snapshot version written before the memory capability existed.
+ *
+ * It carried every feature except the memory. It is read as the current
+ * version with the memory closed, so a session created before the memory
+ * tools existed keeps working and the new capability stays closed.
+ */
+export const PI_FEATURE_CAPABILITY_SNAPSHOT_PRE_MEMORY_VERSION = 4 as const;
 
 /**
  * The snapshot version written before cross-session messaging existed.
@@ -66,6 +76,21 @@ export const PI_FEATURE_CAPABILITY_SNAPSHOT_RENAMED_VERSION = 2 as const;
 const featureCapabilityModeSchema = z.enum(FEATURE_CAPABILITY_MODES);
 
 export const piFeatureCapabilityMatrixSchema = z
+  .object({
+    scratchWorkspace: featureCapabilityModeSchema,
+    repositoryEditing: featureCapabilityModeSchema,
+    codeMode: featureCapabilityModeSchema,
+    sandboxExecution: featureCapabilityModeSchema,
+    externalActions: featureCapabilityModeSchema,
+    mcp: featureCapabilityModeSchema,
+    crossSessionMessaging: featureCapabilityModeSchema,
+    browser: featureCapabilityModeSchema,
+    memory: featureCapabilityModeSchema,
+  })
+  .strict();
+
+/** A snapshot as it was written before the memory capability existed. */
+const preMemoryPiFeatureCapabilityMatrixSchema = z
   .object({
     scratchWorkspace: featureCapabilityModeSchema,
     repositoryEditing: featureCapabilityModeSchema,
@@ -126,6 +151,12 @@ export const piFeatureCapabilitySnapshotSchema = z
       .strict(),
     z
       .object({
+        version: z.literal(PI_FEATURE_CAPABILITY_SNAPSHOT_PRE_MEMORY_VERSION),
+        capabilities: preMemoryPiFeatureCapabilityMatrixSchema,
+      })
+      .strict(),
+    z
+      .object({
         version: z.literal(PI_FEATURE_CAPABILITY_SNAPSHOT_PRE_BROWSER_VERSION),
         capabilities: preBrowserPiFeatureCapabilityMatrixSchema,
       })
@@ -150,6 +181,16 @@ export const piFeatureCapabilitySnapshotSchema = z
         capabilities: snapshot.capabilities,
       };
     }
+    if (snapshot.version === PI_FEATURE_CAPABILITY_SNAPSHOT_PRE_MEMORY_VERSION) {
+      return {
+        version: PI_FEATURE_CAPABILITY_SNAPSHOT_VERSION,
+        capabilities: {
+          ...snapshot.capabilities,
+          // A feature that did not exist cannot have been enabled.
+          memory: "off",
+        },
+      };
+    }
     if (snapshot.version === PI_FEATURE_CAPABILITY_SNAPSHOT_PRE_BROWSER_VERSION) {
       return {
         version: PI_FEATURE_CAPABILITY_SNAPSHOT_VERSION,
@@ -157,6 +198,7 @@ export const piFeatureCapabilitySnapshotSchema = z
           ...snapshot.capabilities,
           // A feature that did not exist cannot have been enabled.
           browser: "off",
+          memory: "off",
         },
       };
     }
@@ -178,6 +220,7 @@ export const piFeatureCapabilitySnapshotSchema = z
             : (rest as { crossSessionMessaging: FeatureCapabilityMode }).crossSessionMessaging,
         // A feature that did not exist cannot have been enabled.
         browser: "off",
+        memory: "off",
       },
     };
   });
@@ -200,6 +243,7 @@ export function resolvePiFeatureCapabilities(
     mcp: resolveFeatureCapability(input.mcp),
     crossSessionMessaging: resolveFeatureCapability(input.crossSessionMessaging),
     browser: resolveFeatureCapability(input.browser),
+    memory: resolveFeatureCapability(input.memory),
   };
 }
 

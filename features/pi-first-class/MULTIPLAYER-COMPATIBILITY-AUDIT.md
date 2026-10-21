@@ -164,17 +164,17 @@ harness parity.
 
 ### E. Pi/Agents feature placement and activation order
 
-| Feature                           | Existing service to reuse                           | Product rule                                                                           | Activation order                           |
-| --------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------ |
-| Durable inbox/scheduling          | SessionDO message queue and alarms                  | Pi inbox is execution detail; human work always enters SessionDO ordering              | Already active for ordinary Pi prompts     |
-| Task graph/inspect                | SessionDO-authorized bounded BFF                    | Opaque metadata only; no parallel presence/read state or hidden transcript             | Read surface after redaction tests         |
-| Compaction                        | Pi conversation task + SessionDO control receipt    | Explicit permission, canonical control event, bounded cost                             | After native controls                      |
-| Skills                            | SessionSkillStore and creation-time session context | Same managed installation as other harnesses; no secret-bearing skill payload          | Existing read path                         |
-| Memory                            | Existing SessionDO/D1 memory service                | No Pi-private product memory authority                                                 | Existing service only                      |
-| Attachments/images                | Existing attachment/media stores and timeline       | Pi gets scoped references only after support; no inline secret bytes or private bypass | After provider-safe Pi attachment contract |
-| Browser                           | Future SessionDO browser gateway                    | Optional/lazy/default off; isolated credentials and untrusted-content policy           | After Code Mode safety and browser canary  |
-| MCP resources/prompts/elicitation | Future D1 OAuth catalog + SessionDO broker          | Read-only resources first; prompts/elicitation require explicit UX and approval        | After OAuth/egress foundation              |
-| Cross-session messaging           | Future D1 dual receipt path                         | Existing target queue and actor provenance, never PiDO-to-PiDO                         | Last, after all RBAC cases pass            |
+| Feature                           | Existing service to reuse                                                          | Product rule                                                                           | Activation order                           |
+| --------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------ |
+| Durable inbox/scheduling          | SessionDO message queue and alarms                                                 | Pi inbox is execution detail; human work always enters SessionDO ordering              | Already active for ordinary Pi prompts     |
+| Task graph/inspect                | SessionDO-authorized bounded BFF                                                   | Opaque metadata only; no parallel presence/read state or hidden transcript             | Read surface after redaction tests         |
+| Compaction                        | Pi conversation task + SessionDO control receipt                                   | Explicit permission, canonical control event, bounded cost                             | After native controls                      |
+| Skills                            | SessionSkillStore and creation-time session context                                | Same managed installation as other harnesses; no secret-bearing skill payload          | Existing read path                         |
+| Memory                            | The existing D1 memory authority, reached through the session's own internal route | No Pi-private product memory authority                                                 | Existing service only                      |
+| Attachments/images                | Existing attachment/media stores and timeline                                      | Pi gets scoped references only after support; no inline secret bytes or private bypass | After provider-safe Pi attachment contract |
+| Browser                           | Future SessionDO browser gateway                                                   | Optional/lazy/default off; isolated credentials and untrusted-content policy           | After Code Mode safety and browser canary  |
+| MCP resources/prompts/elicitation | Future D1 OAuth catalog + SessionDO broker                                         | Read-only resources first; prompts/elicitation require explicit UX and approval        | After OAuth/egress foundation              |
+| Cross-session messaging           | Future D1 dual receipt path                                                        | Existing target queue and actor provenance, never PiDO-to-PiDO                         | Last, after all RBAC cases pass            |
 
 ## Regression evidence required
 

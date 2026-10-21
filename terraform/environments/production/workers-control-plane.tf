@@ -95,32 +95,33 @@ module "control_plane_worker" {
 
   plain_text_bindings = merge(
     {
-      WEB_APP_URL                   = { value = local.web_app_url }
-      ALLOWED_USERS                 = { value = var.allowed_users }
-      ALLOWED_EMAIL_DOMAINS         = { value = var.allowed_email_domains }
-      ALLOWED_EMAILS                = { value = var.allowed_emails }
-      ALLOWED_GITHUB_ORGS           = { value = var.allowed_github_orgs }
-      UNSAFE_ALLOW_ALL_USERS        = { value = tostring(var.unsafe_allow_all_users) }
-      WORKER_URL                    = { value = local.control_plane_url }
-      DEPLOYMENT_NAME               = { value = var.deployment_name }
-      APP_NAME                      = { value = var.app_name }
-      GITHUB_BOT_USERNAME           = { value = var.github_bot_username }
-      SANDBOX_PROVIDER              = { value = var.sandbox_provider }
-      SANDBOX_INACTIVITY_TIMEOUT_MS = { value = tostring(var.sandbox_inactivity_timeout_ms) }
-      SANDBOX_BOOT_TIMEOUT_MS       = { value = tostring(var.sandbox_boot_timeout_ms) }
-      TEAMS_ENFORCEMENT             = { value = var.teams_enforcement }
-      PI_DURABLE_ENABLED            = { value = tostring(local.pi_durable_available) }
-      PI_SCRATCH_WORKSPACE_MODE             = { value = var.pi_scratch_workspace_mode }
-      PI_REPOSITORY_EDITING_MODE    = { value = var.pi_repository_editing_mode }
-      PI_SANDBOX_EXECUTION_MODE     = { value = var.pi_sandbox_execution_mode }
+      WEB_APP_URL                      = { value = local.web_app_url }
+      ALLOWED_USERS                    = { value = var.allowed_users }
+      ALLOWED_EMAIL_DOMAINS            = { value = var.allowed_email_domains }
+      ALLOWED_EMAILS                   = { value = var.allowed_emails }
+      ALLOWED_GITHUB_ORGS              = { value = var.allowed_github_orgs }
+      UNSAFE_ALLOW_ALL_USERS           = { value = tostring(var.unsafe_allow_all_users) }
+      WORKER_URL                       = { value = local.control_plane_url }
+      DEPLOYMENT_NAME                  = { value = var.deployment_name }
+      APP_NAME                         = { value = var.app_name }
+      GITHUB_BOT_USERNAME              = { value = var.github_bot_username }
+      SANDBOX_PROVIDER                 = { value = var.sandbox_provider }
+      SANDBOX_INACTIVITY_TIMEOUT_MS    = { value = tostring(var.sandbox_inactivity_timeout_ms) }
+      SANDBOX_BOOT_TIMEOUT_MS          = { value = tostring(var.sandbox_boot_timeout_ms) }
+      TEAMS_ENFORCEMENT                = { value = var.teams_enforcement }
+      PI_DURABLE_ENABLED               = { value = tostring(local.pi_durable_available) }
+      PI_SCRATCH_WORKSPACE_MODE        = { value = var.pi_scratch_workspace_mode }
+      PI_REPOSITORY_EDITING_MODE       = { value = var.pi_repository_editing_mode }
+      PI_SANDBOX_EXECUTION_MODE        = { value = var.pi_sandbox_execution_mode }
       PI_SANDBOX_EXECUTION_ATTESTATION = { value = var.pi_sandbox_execution_attestation }
-      PI_CODE_MODE                  = { value = var.pi_codemode_mode == "paid" ? "enabled" : "off" }
-      PI_CROSS_SESSION_MESSAGING_MODE = { value = var.pi_cross_session_messaging_mode }
-      PI_EXTERNAL_ACTIONS_MODE        = { value = var.pi_external_actions_mode }
-      PI_EXTERNAL_ACTION_PROVIDERS   = { value = var.pi_external_action_providers }
-      PI_MCP_MODE                    = { value = var.pi_mcp_mode }
-      PI_BROWSER_MODE                = { value = var.pi_browser_mode }
-      PI_BROWSER_ALLOWED_DOMAINS     = { value = var.pi_browser_allowed_domains }
+      PI_CODE_MODE                     = { value = var.pi_codemode_mode == "paid" ? "enabled" : "off" }
+      PI_CROSS_SESSION_MESSAGING_MODE  = { value = var.pi_cross_session_messaging_mode }
+      PI_EXTERNAL_ACTIONS_MODE         = { value = var.pi_external_actions_mode }
+      PI_EXTERNAL_ACTION_PROVIDERS     = { value = var.pi_external_action_providers }
+      PI_MCP_MODE                      = { value = var.pi_mcp_mode }
+      PI_BROWSER_MODE                  = { value = var.pi_browser_mode }
+      PI_BROWSER_ALLOWED_DOMAINS       = { value = var.pi_browser_allowed_domains }
+      PI_MEMORY_MODE                   = { value = var.pi_memory_mode }
     },
     local.github_oauth_enabled ? {
       GITHUB_CLIENT_ID = { value = trimspace(var.github_client_id) }

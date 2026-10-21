@@ -67,6 +67,10 @@ export interface SessionInternalRouteHandlers {
   piMcpList: SessionInternalRouteHandler;
   mcpPinGrant: SessionInternalRouteHandler;
   piMcpRead: SessionInternalRouteHandler;
+  piMemoryRead: SessionInternalRouteHandler;
+  piMemoryWrite: SessionInternalRouteHandler;
+  piMemorySearch: SessionInternalRouteHandler;
+  piMemoryAuthorize: SessionInternalRouteHandler;
   crossSessionInbound: SessionInternalRouteHandler;
   externalActionStatus: SessionInternalRouteHandler;
   externalActionPending: SessionInternalRouteHandler;
@@ -229,6 +233,26 @@ export function createSessionInternalRoutes(
       method: "POST",
       path: SessionInternalPaths.piMcpRead,
       handler: handlers.piMcpRead,
+    },
+    {
+      method: "POST",
+      path: SessionInternalPaths.piMemoryRead,
+      handler: handlers.piMemoryRead,
+    },
+    {
+      method: "POST",
+      path: SessionInternalPaths.piMemoryWrite,
+      handler: handlers.piMemoryWrite,
+    },
+    {
+      method: "POST",
+      path: SessionInternalPaths.piMemorySearch,
+      handler: handlers.piMemorySearch,
+    },
+    {
+      method: "POST",
+      path: SessionInternalPaths.piMemoryAuthorize,
+      handler: handlers.piMemoryAuthorize,
     },
     {
       method: "POST",

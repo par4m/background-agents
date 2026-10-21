@@ -108,6 +108,7 @@ const ENV_CONFIG_KEYS = {
   LINEAR_API_KEY: true,
   PI_BROWSER_MODE: true,
   PI_BROWSER_ALLOWED_DOMAINS: true,
+  PI_MEMORY_MODE: true,
   MCP_CONNECTIONS_ENABLED: true,
   LOG_LEVEL: true,
 } as const satisfies Record<keyof EnvConfig, true>;
