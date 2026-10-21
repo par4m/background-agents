@@ -574,6 +574,32 @@ fixed or listed as still open above.
 | A read-only MCP capability installed a tool that always failed                                                | low      | fixed: the gateway refuses only when it is off                     |
 | The browser effect registration was declared and never consumed                                               | low      | written down as reserved; the invariant makes it a refused runtime |
 
+## The D1 migration numbers, and why they moved
+
+Merging `origin/main` collided on migration **0089**: the Pi branch took it for
+`0089_pi_durable_harness.sql`, and main had taken it for `0089_drop_opencomputer_image_builds.sql`.
+The migration runner refuses a duplicate version, so every lane failed until it was resolved.
+
+**The Pi migrations moved up by one** — 0089→0090 (the Pi durable harness), 0090→0091 (external
+actions), 0091→0092 (the MCP OAuth foundation), 0092→0093 (Slack ingress receipts), 0093→0094
+(cross-session receipts), 0094→0095 (MCP session pins), 0095→0096 (Slack thread mapping) — so they
+sit above main's 0089 and every version is unique.
+
+**Why the Pi side moved and not main's.** The runner skips a migration **by version**, so the two
+directions are not symmetric:
+
+- Renumbering _ours_ is safe for a deployment on main's lineage: its ledger already holds 0089 for
+  the OpenComputer drop, so main's migration is skipped (it already ran) and ours applies as 0090.
+- Renumbering _main's_ would have silently **skipped ours** on exactly that deployment, leaving the
+  `harness` column unextended and the Pi harness unusable — a silent failure, not a loud one.
+
+The Pi migrations were never applied anywhere: the branch was never deployed, and every live gate
+that would have applied them (the Code Mode canary, the MCP canary, the provider canaries, the
+ten-minute personal canary) is still open. The numbers live in
+`packages/shared/src/pi-migration-reservations.ts`, and the reservation registry is what enforces
+that each migration declares the feature it belongs to — so the versions and the files cannot drift
+apart again without a test failing.
+
 ## How to work in this repository
 
 - **The order is always: audit what Open-Inspect already has and how it works, then design the best
