@@ -76,7 +76,11 @@ export interface TeamAuditInput {
 export type TeamAuditActor = Pick<TeamAuditInput, "requestId" | "actorUserId">;
 
 export class TeamAuditStore {
-  constructor(private readonly db: SqlDatabase) {}
+  private readonly db: SqlDatabase;
+
+  constructor(db: SqlDatabase) {
+    this.db = db;
+  }
 
   bind(input: TeamAuditInput, onlyIfPreviousChanged = false): SqlStatement {
     return bindAppliedAuditEvent(

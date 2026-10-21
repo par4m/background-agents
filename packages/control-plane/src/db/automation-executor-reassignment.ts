@@ -25,7 +25,11 @@ interface BulkReassignmentInput {
  * still owned by the old executor before updating those same rows in the same transaction.
  */
 export class AutomationExecutorReassignmentStore {
-  constructor(private readonly db: SqlDatabase) {}
+  private readonly db: SqlDatabase;
+
+  constructor(db: SqlDatabase) {
+    this.db = db;
+  }
 
   bindGuardedReassignment(input: GuardedReassignmentInput): SqlStatement[] {
     return [
