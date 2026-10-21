@@ -42,8 +42,23 @@ function forward(control: unknown, sessionId: string, ctx: SessionRouteContext) 
     body: JSON.stringify({ ...authority, control: parsed.data }),
   });
 }
-const COLLABORATION_ACTIONS = new Set(["send", "steer", "follow_up", "fork", "compact"]);
-const LIFECYCLE_ACTIONS = new Set(["cancel_exact", "reset", "handoff"]);
+/**
+ * The actions a collaborator may take.
+ *
+ * Messaging only: a collaborator who may post a message may steer or follow
+ * up, and nothing more.
+ */
+const COLLABORATION_ACTIONS = new Set(["send", "steer", "follow_up"]);
+/**
+ * The actions that reshape the agent's durable conversation.
+ *
+ * `fork`, `reset`, `handoff` and `compact` create or rewrite conversations
+ * that every collaborator of the session can see, so they need the same
+ * authority Open-Inspect already uses for "this person may reshape the
+ * session": the session's `lifecycle` action, which the sandbox harness's
+ * own stop, cancel and diff routes already require.
+ */
+const LIFECYCLE_ACTIONS = new Set(["cancel_exact", "fork", "reset", "handoff", "compact"]);
 function post(allowed: Set<string>) {
   return async (
     request: Request,

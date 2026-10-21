@@ -56,4 +56,21 @@ describe("usePiAgents", () => {
     );
     await waitFor(() => expect(result.current.agents).toEqual([]));
   });
+
+  it("routes the agent's lifecycle actions to the lifecycle route", async () => {
+    vi.mocked(browserApiFetch)
+      .mockResolvedValueOnce(Response.json({ state: "completed", result: { agents: [] } }))
+      .mockResolvedValueOnce(Response.json({ state: "accepted" }, { status: 202 }))
+      .mockResolvedValueOnce(Response.json({ state: "completed", result: { agents: [] } }));
+    const { result } = renderHook(() => usePiAgents("session-1", true), { wrapper });
+    await waitFor(() => expect(browserApiFetch).toHaveBeenCalledTimes(1));
+
+    await result.current.run({ action: "fork", conversationId: 1, entryId: 2 });
+
+    expect(browserApiFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/sessions/session-1/pi/lifecycle-control",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
 });

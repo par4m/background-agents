@@ -4,21 +4,10 @@ import {
 } from "@open-inspect/shared/types/session-diffs";
 import { z } from "zod";
 import type { SqlStorage } from "../session/sql-storage";
+import { assertPiDoTables } from "./schema";
 
 const MAX_ERROR_LENGTH = 2_000;
 export const REPOSITORY_DIFF_PUBLISH_TIMEOUT_MS = 15_000;
-const TABLE_SQL = `CREATE TABLE IF NOT EXISTS oi_pi_repository_diff_outbox (
-  singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
-  generation INTEGER NOT NULL,
-  pending_generation INTEGER,
-  pending_json TEXT,
-  recapture_required INTEGER NOT NULL,
-  last_success_json TEXT,
-  last_error TEXT,
-  last_error_at INTEGER,
-  permanent_error TEXT,
-  updated_at INTEGER NOT NULL
-)`;
 
 const rowSchema = z.object({
   generation: z.number().int().nonnegative(),
@@ -184,7 +173,7 @@ export class RepositoryDiffOutbox {
   }
 
   state(): RepositoryDiffOutboxState {
-    this.ensureTable();
+    this.assertTable();
     const rows = this.sql
       .exec(
         `SELECT generation, pending_generation, pending_json, recapture_required,
@@ -254,7 +243,7 @@ export class RepositoryDiffOutbox {
   }
 
   private ensureRow(): void {
-    this.ensureTable();
+    this.assertTable();
     this.sql.exec(
       `INSERT OR IGNORE INTO oi_pi_repository_diff_outbox
          (singleton, generation, recapture_required, updated_at)
@@ -263,9 +252,11 @@ export class RepositoryDiffOutbox {
     );
   }
 
-  private ensureTable(): void {
+  private assertTable(): void {
     if (this.initialized) return;
-    this.sql.exec(TABLE_SQL);
+    // The table is the Pi Durable Object's tracked migration's work, not this
+    // outbox's: a missing table is a deployment that did not migrate.
+    assertPiDoTables(this.sql, "oi_pi_repository_diff_outbox");
     this.initialized = true;
   }
 }

@@ -113,10 +113,47 @@ export const PI_SANDBOX_EXECUTION_TOOL_EFFECT_REGISTRATIONS = [
  * The MCP read tools.
  *
  * They are declared here, before any extension is assembled, so the assembler
- * knows their effect without asking the session. The tool is read-only: an
+ * knows their effect without asking the session. The tools are read-only: an
  * MCP mutation never becomes a tool, it becomes an external action that a
  * person approves.
+ *
+ * There are two, not one, because the two lanes are different credential
+ * domains: `mcp_read_shared` reads through the deployment's own server
+ * credential, scoped by the session's repositories, and `mcp_read_connection`
+ * reads through one person's OAuth connection. One model-visible tool that
+ * spans both would let the model confuse a deployment-wide read with a
+ * person's, which no other harness's MCP surface allows.
  */
+export const PI_MCP_TOOL_EFFECT_REGISTRATIONS = [
+  {
+    name: "mcp_read_shared",
+    effect: "external_read",
+    callers: ["model"],
+    replay: "safe",
+  },
+  {
+    name: "mcp_read_connection",
+    effect: "external_read",
+    callers: ["model"],
+    replay: "safe",
+  },
+] as const satisfies readonly ToolEffectRegistration[];
+
+/**
+ * The cross-session messaging tool.
+ *
+ * It changes something outside the model, so it is owned by the cross-session
+ * policy delegate and authorized by the owning session on every call.
+ */
+export const CROSS_SESSION_TOOL_EFFECT_REGISTRATIONS = [
+  {
+    name: "message_session",
+    effect: "external_mutation",
+    callers: ["model"],
+    replay: "safe",
+  },
+] as const satisfies readonly ToolEffectRegistration[];
+
 /**
  * The browser tool.
  *
@@ -138,30 +175,6 @@ export const PI_BROWSER_TOOL_EFFECT_REGISTRATIONS = [
     effect: "external_mutation",
     callers: ["model"],
     replay: "unsafe",
-  },
-] as const satisfies readonly ToolEffectRegistration[];
-
-/**
- * The cross-session messaging tool.
- *
- * It changes something outside the model, so it is owned by the cross-session
- * policy delegate and authorized by the owning session on every call.
- */
-export const CROSS_SESSION_TOOL_EFFECT_REGISTRATIONS = [
-  {
-    name: "message_session",
-    effect: "external_mutation",
-    callers: ["model"],
-    replay: "safe",
-  },
-] as const satisfies readonly ToolEffectRegistration[];
-
-export const PI_MCP_TOOL_EFFECT_REGISTRATIONS = [
-  {
-    name: "mcp_read",
-    effect: "external_read",
-    callers: ["model"],
-    replay: "safe",
   },
 ] as const satisfies readonly ToolEffectRegistration[];
 

@@ -169,6 +169,14 @@ export interface PiRuntimeDispatch {
   status(sessionId: string): Promise<{ busy: boolean; pending: number }>;
   control(input: PiRuntimeControl): Promise<PiRuntimeControlResult>;
   refreshDiff(sessionId: string): Promise<void>;
+  /**
+   * Preserve the object's durable record for an archive.
+   *
+   * The archive is the promise that the record survives and that the agent is
+   * done. Nothing durable is deleted: the conversation, the task graph, the
+   * compaction boundaries and the workspace files stay where they are.
+   */
+  preserveForArchive(sessionId: string): Promise<void>;
   destroy(sessionId: string): Promise<void>;
 }
 

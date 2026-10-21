@@ -38,6 +38,7 @@ import { Lifecycle } from "agents/lifecycle";
 import { SessionInternalPaths } from "../session/contracts";
 import { CodexBrokerCredentialStore } from "../pi/codex-credential-store";
 import { PiProjectionCapability } from "../pi/projection-capability";
+import { applyPiDoMigrations } from "../pi/schema";
 import {
   PermanentPiResultDeliveryError,
   RetryablePiProjectionError,
@@ -252,6 +253,15 @@ interface NativeControlCompletion {
 }
 /** OpenCode-free, sandbox-free Pi runtime for one Open-Inspect session. */
 export class PiSessionDO extends DurableObject<PiWorkerBindings> {
+  constructor(ctx: DurableObjectState, env: PiWorkerBindings) {
+    super(ctx, env);
+    // The object's own tables are created by its tracked migrations, once per
+    // activation, before any writer can reach them. A writer that finds its
+    // table missing is a deployment that did not migrate, not something to
+    // paper over at first use.
+    applyPiDoMigrations(this.ctx.storage.sql);
+  }
+
   private readonly log = createLogger("pi-session-do", {
     harness: "pi",
     execution_backend: "durable_object",
@@ -1331,6 +1341,41 @@ export class PiSessionDO extends DurableObject<PiWorkerBindings> {
       })
     );
     return { agents } as unknown as JsonValue;
+  }
+
+  /**
+   * Preserve this object's durable record for an archive.
+   *
+   * The archive is the promise that the record survives and that the agent is
+   * done. For the sandbox that promise is kept by saving the runtime and
+   * stopping it. For Pi it is kept by stopping the agent's work and by
+   * delivering every event the agent produced: the owning session's timeline
+   * — and the export read from it — then hold the whole record rather than a
+   * prefix of it.
+   *
+   * Nothing durable is deleted. The native transcript, the task graph, the
+   * compaction boundaries and the workspace files stay where they are.
+   */
+  async preserveForArchive(sessionId: string): Promise<void> {
+    await this.ensureSession(sessionId);
+    // The agent stops working on an archived session: the archive says the
+    // record is finished, not that the run may continue. A cold object has
+    // no live code to abort, and opening its harness here would make the
+    // archive depend on repository rematerialization and on a provider that
+    // may be unavailable or revoked.
+    if (this.harnessOpened) await this.harness.abort({ session: ROOT_SESSION }).catch(() => false);
+    // Every event the agent produced reaches the owning session. A delivery
+    // that fails stays in the outbox, where the projector's job retries it,
+    // so the archive is never blocked by a provider that is down.
+    for (const operationId of this.projectionOutbox.undeliveredOperations()) {
+      await this.projectionOutbox.drain(operationId).catch((error) => {
+        this.log.warn("pi.archive_projection_incomplete", {
+          event: "pi.archive_projection_incomplete",
+          operation_id: operationId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    }
   }
 
   async destroy(sessionId: string): Promise<void> {

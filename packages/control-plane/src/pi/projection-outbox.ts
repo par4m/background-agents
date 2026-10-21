@@ -6,6 +6,7 @@ import { z } from "zod";
 import type { SqlStorage } from "../session/sql-storage";
 import type { PiAccountingSnapshot } from "./accounting";
 import { piRuntimeUsageSchema } from "./runtime-contract";
+import { assertPiDoTables } from "./schema";
 
 const outboxRowSchema = z.object({
   sequence: z.number().int().positive(),
@@ -14,27 +15,6 @@ const outboxRowSchema = z.object({
   event_json: z.string(),
 });
 
-const TABLE_SQL = `CREATE TABLE IF NOT EXISTS oi_pi_projection_outbox (
-  sequence INTEGER NOT NULL,
-  operation_id TEXT NOT NULL,
-  display_id TEXT NOT NULL,
-  source_id TEXT,
-  event_json TEXT NOT NULL,
-  created_at INTEGER NOT NULL,
-  delivered_at INTEGER,
-  failed_at INTEGER,
-  failure TEXT,
-  PRIMARY KEY(operation_id, sequence),
-  UNIQUE(operation_id, source_id)
-)`;
-
-const FINALIZATION_SQL = `CREATE TABLE IF NOT EXISTS oi_pi_projection_finalization (
-  operation_id TEXT PRIMARY KEY,
-  cost_usd REAL NOT NULL,
-  usage_json TEXT NOT NULL,
-  result_rejection TEXT,
-  captured_at INTEGER NOT NULL
-)`;
 const MAX_FINALIZATION_TOMBSTONES = 128;
 
 export class PermanentPiProjectionError extends Error {
@@ -66,7 +46,7 @@ export class PiProjectionOutbox {
     createdAt: number,
     sourceId: string | null = null
   ): number {
-    this.ensureTables();
+    this.assertTables();
     const eventJson = JSON.stringify(sandboxIngressEventSchema.parse(event));
     if (sourceId === null) {
       const row = this.sql
@@ -110,7 +90,7 @@ export class PiProjectionOutbox {
   }
 
   pending(operationId: string): number {
-    this.ensureTables();
+    this.assertTables();
     const row = this.sql
       .exec(
         `SELECT COUNT(*) AS count FROM oi_pi_projection_outbox
@@ -122,7 +102,7 @@ export class PiProjectionOutbox {
   }
 
   isFinalized(operationId: string): boolean {
-    this.ensureTables();
+    this.assertTables();
     return (
       this.sql
         .exec("SELECT 1 FROM oi_pi_projection_finalization WHERE operation_id = ?", operationId)
@@ -131,7 +111,7 @@ export class PiProjectionOutbox {
   }
 
   markFinalized(operationId: string, accounting: PiAccountingSnapshot, capturedAt: number): void {
-    this.ensureTables();
+    this.assertTables();
     this.sql
       .exec(
         `INSERT OR IGNORE INTO oi_pi_projection_finalization
@@ -145,7 +125,7 @@ export class PiProjectionOutbox {
   }
 
   finalAccounting(operationId: string): PiAccountingSnapshot | null {
-    this.ensureTables();
+    this.assertTables();
     const row = this.sql
       .exec(
         `SELECT cost_usd, usage_json FROM oi_pi_projection_finalization
@@ -159,7 +139,7 @@ export class PiProjectionOutbox {
   }
 
   markResultRejected(operationId: string, error: string): void {
-    this.ensureTables();
+    this.assertTables();
     this.sql
       .exec(
         `UPDATE oi_pi_projection_finalization SET result_rejection = ?
@@ -171,7 +151,7 @@ export class PiProjectionOutbox {
   }
 
   resultRejection(operationId: string): string | null {
-    this.ensureTables();
+    this.assertTables();
     const row = this.sql
       .exec(
         `SELECT result_rejection FROM oi_pi_projection_finalization
@@ -182,8 +162,21 @@ export class PiProjectionOutbox {
     return typeof row?.result_rejection === "string" ? row.result_rejection : null;
   }
 
+  /** The operations whose events have not reached the owning session yet. */
+  undeliveredOperations(): string[] {
+    this.assertTables();
+    const rows = this.sql
+      .exec(
+        `SELECT DISTINCT operation_id FROM oi_pi_projection_outbox
+         WHERE delivered_at IS NULL AND failed_at IS NULL
+         ORDER BY operation_id`
+      )
+      .toArray() as Array<{ operation_id: string }>;
+    return rows.map((row) => row.operation_id);
+  }
+
   async drain(operationId: string): Promise<void> {
-    this.ensureTables();
+    this.assertTables();
     for (;;) {
       const raw = this.sql
         .exec(
@@ -236,7 +229,7 @@ export class PiProjectionOutbox {
   }
 
   complete(operationId: string): void {
-    this.ensureTables();
+    this.assertTables();
     this.sql
       .exec("DELETE FROM oi_pi_projection_outbox WHERE operation_id = ?", operationId)
       .toArray();
@@ -252,10 +245,11 @@ export class PiProjectionOutbox {
       .toArray();
   }
 
-  private ensureTables(): void {
+  private assertTables(): void {
     if (this.initialized) return;
-    this.sql.exec(TABLE_SQL);
-    this.sql.exec(FINALIZATION_SQL);
+    // The tables are the Pi Durable Object's tracked migration's work, not
+    // this outbox's: a missing table is a deployment that did not migrate.
+    assertPiDoTables(this.sql, "oi_pi_projection_outbox", "oi_pi_projection_finalization");
     this.initialized = true;
   }
 }
