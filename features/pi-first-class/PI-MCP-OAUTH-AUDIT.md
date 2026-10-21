@@ -21,7 +21,7 @@ where they disagree with the code are named in the last section.
 | `packages/control-plane/src/cloudflare/mcp-connection-durable-object.ts` | The broker. `Lifecycle.install(this).use(this.mcp)` (`:76`), `initialize` (`:86-122`), `status` (`:116-161`), `callTool` (`:163-197`), `handleCallback` (`:273-275`), `destroy` (`:288-327`).                                                                    |
 | `packages/control-plane/src/mcp/broker-contract.ts`                      | The port. `McpConnectionBrokerStatus` (`:10-25`) already declares `authUrl?` and `state?`; the port already declares `status(connectionId)` (`:53`) and `handleCallback` (`:69`).                                                                                |
 | `packages/control-plane/src/cloudflare/mcp-connection-dispatch.ts`       | The Cloudflare adapter. `status` is wired (`:16`) and **nothing in the product calls it** (see 1.4).                                                                                                                                                             |
-| `terraform/d1/migrations/0091_mcp_oauth_foundation.sql`                  | `mcp_connections.status` (`:13-15`) already allows `foundation_staged, revoking, transport_ready, oauth_authorizing, oauth_ready, failed, revoked`. `mcp_oauth_storage` (`:63-69`) is the encrypted credential authority, cascading from the connection (`:64`). |
+| `terraform/d1/migrations/0092_mcp_oauth_foundation.sql`                  | `mcp_connections.status` (`:13-15`) already allows `foundation_staged, revoking, transport_ready, oauth_authorizing, oauth_ready, failed, revoked`. `mcp_oauth_storage` (`:63-69`) is the encrypted credential authority, cascading from the connection (`:64`). |
 
 ### 1.2 Question 1 — what is the owner's flow today? Does the owner ever learn the connection is waiting for an approval?
 
@@ -112,8 +112,8 @@ checkpoints `revoking` in D1, then the broker's `destroy`
 **every** `mcp_oauth_storage` row for the connection (`:317-319`), wipes the DO's key-value storage
 (`:320`) and writes the tombstone (`:321-324`). The saga then deletes the `mcp_connections` row
 (`db/mcp-connections.ts:232-240`), which cascades to `mcp_oauth_storage`
-(`0091_mcp_oauth_foundation.sql:64`) and to `mcp_connection_tool_snapshots` (`:46`) and to
-`mcp_session_pins` (`0094_mcp_session_pins.sql:12`). The tombstone refuses any later `initialize`
+(`0092_mcp_oauth_foundation.sql:64`) and to `mcp_connection_tool_snapshots` (`:46`) and to
+`mcp_session_pins` (`0095_mcp_session_pins.sql:12`). The tombstone refuses any later `initialize`
 (`:81-83`) and any later `destroy` for a different connection or owner (`:289-295`, `:300-305`).
 
 **One thing survives, and it is not a credential.** The manager persists its registration in the
@@ -145,7 +145,7 @@ Original `PersonalMcpConnections`
 
 **The state exists in the schema and is never written.** `mcpConnectionStatusSchema`
 (`packages/shared/src/types/integrations.ts:720-728`) and the D1 `CHECK` constraint
-(`0091_mcp_oauth_foundation.sql:13-15`) both already allow `transport_ready`, `oauth_authorizing`,
+(`0092_mcp_oauth_foundation.sql:13-15`) both already allow `transport_ready`, `oauth_authorizing`,
 `oauth_ready` and `failed`. A grep over the whole repository for those four values finds only the
 schema, the migration, the shared test, and the route-catalog test — **no writer**. The only two
 writers are `foundation_staged` (`db/mcp-connections.ts:294`) and `revoking` (`:223`). The states
@@ -225,7 +225,7 @@ surface — exactly the widening the personal lane is supposed to prevent
 
 The pending surface that already exists for an owner's own OAuth is the connection's own durable
 status, and it is already shaped for this: the D1 `CHECK` names `oauth_authorizing` and
-`oauth_ready` (`0091_mcp_oauth_foundation.sql:13-15`), and the shared enum names them
+`oauth_ready` (`0092_mcp_oauth_foundation.sql:13-15`), and the shared enum names them
 (`packages/shared/src/types/integrations.ts:720-728`). The only thing missing was the writer, and
 the owner reading it. The provider-account authorization ledger
 (`db/provider-account-authorizations.ts`) is the closest shape elsewhere in the codebase — a

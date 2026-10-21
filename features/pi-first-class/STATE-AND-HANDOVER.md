@@ -587,7 +587,7 @@ fixed or listed as still open above.
 ## The D1 migration numbers, and why they moved
 
 Merging `origin/main` collided on migration **0089**: the Pi branch took it for
-`0089_pi_durable_harness.sql`, and main had taken it for `0089_drop_opencomputer_image_builds.sql`.
+`0090_pi_durable_harness.sql`, and main had taken it for `0089_drop_opencomputer_image_builds.sql`.
 The migration runner refuses a duplicate version, so every lane failed until it was resolved.
 
 **The Pi migrations moved up by one** — 0089→0090 (the Pi durable harness), 0090→0091 (external

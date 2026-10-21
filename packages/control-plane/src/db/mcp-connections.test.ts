@@ -40,7 +40,7 @@ describe("McpConnectionStore transport state", () => {
       readFileSync(
         fileURLToPath(
           new URL(
-            "../../../../terraform/d1/migrations/0091_mcp_oauth_foundation.sql",
+            "../../../../terraform/d1/migrations/0092_mcp_oauth_foundation.sql",
             import.meta.url
           )
         ),
