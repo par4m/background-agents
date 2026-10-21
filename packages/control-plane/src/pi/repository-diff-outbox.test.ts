@@ -6,6 +6,7 @@ import {
   PermanentRepositoryDiffPublicationError,
   RepositoryDiffOutbox,
 } from "./repository-diff-outbox";
+import { applyPiDoMigrations } from "./schema";
 
 const SHA = "a".repeat(40);
 
@@ -44,7 +45,9 @@ function bundle(path: string): SessionDiffUpload {
 
 function outbox(now: () => number = () => 100) {
   const database = new DatabaseSync(":memory:");
-  return new RepositoryDiffOutbox(createNodeSqlStorage(database).sql, now);
+  const sql = createNodeSqlStorage(database).sql;
+  applyPiDoMigrations(sql);
+  return new RepositoryDiffOutbox(sql, now);
 }
 
 describe("RepositoryDiffOutbox", () => {
@@ -96,8 +99,10 @@ describe("RepositoryDiffOutbox", () => {
 
   it("survives eviction and a 24-hour publication outage without losing the previous bundle", async () => {
     const database = new DatabaseSync(":memory:");
+    const sql = createNodeSqlStorage(database).sql;
+    applyPiDoMigrations(sql);
     let now = 0;
-    const first = new RepositoryDiffOutbox(createNodeSqlStorage(database).sql, () => now);
+    const first = new RepositoryDiffOutbox(sql, () => now);
     const previous = bundle("previous.txt");
     first.stage(previous);
     await first.drain(async () => undefined);
@@ -109,7 +114,7 @@ describe("RepositoryDiffOutbox", () => {
       now = minute * 60_000;
       await first.drain(outage);
     }
-    const reopened = new RepositoryDiffOutbox(createNodeSqlStorage(database).sql, () => now);
+    const reopened = new RepositoryDiffOutbox(sql, () => now);
 
     expect(reopened.state()).toMatchObject({
       pending,
@@ -187,7 +192,9 @@ describe("RepositoryDiffOutbox", () => {
 
   it("bounds a hung publication with the TypeScript millisecond deadline", async () => {
     const database = new DatabaseSync(":memory:");
-    const box = new RepositoryDiffOutbox(createNodeSqlStorage(database).sql, () => 100, 5);
+    const sql = createNodeSqlStorage(database).sql;
+    applyPiDoMigrations(sql);
+    const box = new RepositoryDiffOutbox(sql, () => 100, 5);
     await box.stage(bundle("slow.txt"));
 
     await expect(

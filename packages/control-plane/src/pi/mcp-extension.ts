@@ -35,16 +35,49 @@ export interface McpExtensionOptions {
   client: McpReadClient;
 }
 
+const [SHARED_DECLARATION, CONNECTION_DECLARATION] = PI_MCP_TOOL_EFFECT_REGISTRATIONS;
+
 /**
- * The agent's read-only MCP tool.
+ * The agent's read-only MCP tools.
  *
- * The tool reaches a provider only through the owning session, and only for a
+ * The tools reach a provider only through the owning session, and only for a
  * tool the owner reviewed and granted to this session. It cannot mutate: an
  * MCP mutation is not a tool, it is an external action that a person
  * approves.
+ *
+ * There are two tools because the lanes are two credential domains. The
+ * shared server belongs to the deployment and is scoped by the session's own
+ * repositories; a personal connection carries one person's OAuth identity.
+ * Each tool names exactly one target, so the "exactly one target" rule holds
+ * at the tool boundary as well as at the session's.
  */
 export function createMcpExtension(options: McpExtensionOptions) {
-  const declaration = PI_MCP_TOOL_EFFECT_REGISTRATIONS[0];
+  const readTool = (
+    request: {
+      connectionId?: string;
+      serverId?: string;
+      toolName: string;
+      arguments: Record<string, unknown>;
+    },
+    signal?: AbortSignal
+  ) =>
+    options.client.read(request, signal).then((result) => ({
+      isError: false,
+      output: [
+        {
+          type: "text" as const,
+          text: JSON.stringify(result.content ?? null),
+        },
+      ],
+      structuredOutput: result.content as JsonValue,
+      details: {
+        ...(result.connectionId ? { connectionId: result.connectionId } : {}),
+        ...(result.serverId ? { serverId: result.serverId } : {}),
+        toolName: result.toolName,
+        truncated: result.truncated,
+      },
+    }));
+
   return defineExtension({
     name: "open-inspect.mcp",
     sections: [
@@ -57,64 +90,50 @@ export function createMcpExtension(options: McpExtensionOptions) {
     ],
     tools: [
       defineTool({
-        name: declaration.name,
+        name: SHARED_DECLARATION.name,
         description:
-          "Read from a reviewed MCP server. The connection must have been granted to this session by its owner.",
+          "Read from a reviewed MCP server the deployment owns. The session's own repositories decide which shared servers exist for it.",
         parameters: Type.Object({
-          /**
-           * A personal connection the owner granted to this session.
-           *
-           * Exactly one target is named: a personal connection, or a shared
-           * server the deployment owns.
-           */
-          connectionId: Type.Optional(Type.String({ minLength: 1, maxLength: 256 })),
-          /** A shared server the deployment owns. */
-          serverId: Type.Optional(Type.String({ minLength: 1, maxLength: 256 })),
+          /** The shared server to read through. */
+          serverId: Type.String({ minLength: 1, maxLength: 256 }),
           toolName: Type.String({ minLength: 1, maxLength: 256 }),
           arguments: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
         }),
         structuredOutputSchema: Type.Any(),
-        replay: declaration.replay,
-        callers: declaration.callers,
-        execute: async (args, api, context) => {
-          if (!args.connectionId && !args.serverId) {
-            return {
-              isError: true,
-              output: [
-                {
-                  type: "text" as const,
-                  text: "Name either a granted connection or a shared server",
-                },
-              ],
-              details: {} as Record<string, JsonValue>,
-            };
-          }
-          const result = await options.client.read(
+        replay: SHARED_DECLARATION.replay,
+        callers: SHARED_DECLARATION.callers,
+        execute: async (args, api, context) =>
+          readTool(
             {
-              ...(args.connectionId ? { connectionId: args.connectionId } : {}),
-              ...(args.serverId ? { serverId: args.serverId } : {}),
+              serverId: args.serverId,
               toolName: args.toolName,
               arguments: (args.arguments ?? {}) as Record<string, unknown>,
             },
             context.abortSignal
-          );
-          return {
-            isError: false,
-            output: [
-              {
-                type: "text" as const,
-                text: JSON.stringify(result.content ?? null),
-              },
-            ],
-            structuredOutput: result.content as JsonValue,
-            details: {
-              ...(result.connectionId ? { connectionId: result.connectionId } : {}),
-              ...(result.serverId ? { serverId: result.serverId } : {}),
-              toolName: result.toolName,
-              truncated: result.truncated,
+          ),
+      }),
+      defineTool({
+        name: CONNECTION_DECLARATION.name,
+        description:
+          "Read from a reviewed MCP connection its owner granted to this session. The read carries that owner's identity.",
+        parameters: Type.Object({
+          /** The personal connection to read through. */
+          connectionId: Type.String({ minLength: 1, maxLength: 256 }),
+          toolName: Type.String({ minLength: 1, maxLength: 256 }),
+          arguments: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+        }),
+        structuredOutputSchema: Type.Any(),
+        replay: CONNECTION_DECLARATION.replay,
+        callers: CONNECTION_DECLARATION.callers,
+        execute: async (args, api, context) =>
+          readTool(
+            {
+              connectionId: args.connectionId,
+              toolName: args.toolName,
+              arguments: (args.arguments ?? {}) as Record<string, unknown>,
             },
-          };
-        },
+            context.abortSignal
+          ),
       }),
     ],
   });

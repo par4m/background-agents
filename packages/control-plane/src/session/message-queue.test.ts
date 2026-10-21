@@ -285,6 +285,7 @@ function buildQueue(
     status: vi.fn(async () => ({ busy: false, pending: 0 })),
     control: vi.fn(),
     refreshDiff: vi.fn(async () => {}),
+    preserveForArchive: vi.fn(async () => {}),
     destroy: vi.fn(async () => {}),
   };
   const piOperations = {

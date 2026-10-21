@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createNodeSqlStorage } from "../node/sqlite-storage";
 import { PermanentPiProjectionError, PiProjectionOutbox } from "./projection-outbox";
+import { applyPiDoMigrations } from "./schema";
 
 const databases: DatabaseSync[] = [];
 
@@ -19,7 +20,9 @@ function buildOutbox(
 ) {
   const database = new DatabaseSync(":memory:");
   databases.push(database);
-  return new PiProjectionOutbox(createNodeSqlStorage(database).sql, deliver);
+  const sql = createNodeSqlStorage(database).sql;
+  applyPiDoMigrations(sql);
+  return new PiProjectionOutbox(sql, deliver);
 }
 
 describe("PiProjectionOutbox", () => {

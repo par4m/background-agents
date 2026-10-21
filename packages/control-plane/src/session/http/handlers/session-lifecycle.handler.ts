@@ -68,7 +68,15 @@ export class SessionLifecycleHandler {
     private readonly titleService: SessionTitleService,
     private readonly sandboxLifecycle: SandboxCancellation,
     private readonly durableObjectId: string,
-    private readonly cancelSession: () => Promise<void>
+    private readonly cancelSession: () => Promise<void>,
+    /**
+     * The Pi Durable Object's own preservation step.
+     *
+     * A Pi session has no sandbox to save, so its runtime preserves itself:
+     * the agent stops working and every event it produced reaches the
+     * session's timeline. Absent when the deployment has no Pi runtime.
+     */
+    private readonly preservePiArchive: (() => Promise<void>) | undefined
   ) {}
 
   getState(): Response {
@@ -169,6 +177,10 @@ export class SessionLifecycleHandler {
       ...(session.harness === "pi" && !this.sandboxRepository.getSandbox()
         ? []
         : [this.sandboxLifecycle.preserveForArchive()]),
+      // A Pi session has no sandbox to save, so its own runtime preserves
+      // itself. A Pi session that does have an execution sandbox preserves
+      // both.
+      ...(session.harness === "pi" && this.preservePiArchive ? [this.preservePiArchive()] : []),
     ]);
     try {
       await this.statusService.confirmIndexStatus("archived");

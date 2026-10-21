@@ -36,8 +36,10 @@ export function usePiAgents(sessionId: string, enabled: boolean) {
     async (action: PiAgentAction) => {
       const lifecycle =
         action.action === "cancel_exact" ||
+        action.action === "fork" ||
         action.action === "reset" ||
-        action.action === "handoff";
+        action.action === "handoff" ||
+        action.action === "compact";
       const response = await browserApiFetch(
         `/api/sessions/${encodeURIComponent(sessionId)}/pi/${lifecycle ? "lifecycle-control" : "control"}`,
         {

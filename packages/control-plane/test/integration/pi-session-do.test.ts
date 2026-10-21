@@ -639,6 +639,44 @@ describe("PiSessionDO", () => {
     await expect(queryDO(stub, "SELECT id FROM sandbox")).resolves.toEqual([]);
   });
 
+  it("preserves its durable record for an archive without deleting it", async () => {
+    const { sessionName, stub } = await initializedPiStub("pi-archive");
+    await stub.status(sessionName);
+    await runInPiSessionDO(stub, async (instance) => {
+      instance.projectionOutbox.enqueue(
+        "message-1:token",
+        "message-1",
+        {
+          type: "token",
+          sandboxId: `pi:${sessionName}`,
+          timestamp: 1,
+          messageId: "message-1",
+          content: "archived work",
+          partId: "entry-1",
+        },
+        1
+      );
+    });
+
+    await stub.preserveForArchive(sessionName);
+
+    // The archive stops the agent and delivers what it produced, but it
+    // deletes nothing: the conversation, the task graph and the workspace
+    // files stay where they are.
+    await runInPiSessionDO(stub, async (instance, state) => {
+      expect(instance.projectionOutbox.undeliveredOperations()).toEqual([]);
+      await expect(state.storage.get("open-inspect:session-id")).resolves.toBe(sessionName);
+    });
+    const rows = await runInPiSessionDO(stub, async (_instance, state) =>
+      state.storage.sql
+        .exec("SELECT name FROM sqlite_master WHERE type = 'table'")
+        .toArray()
+        .map((row) => (row as { name: string }).name)
+    );
+    expect(rows).toContain("oi_pi_projection_outbox");
+    expect(rows).toContain("pi_conversations");
+  });
+
   it("exposes bounded native controls with sanitized inspection and exact cancellation", async () => {
     const { sessionName, stub } = await initializedPiStub("pi-controls");
     await stub.status(sessionName);

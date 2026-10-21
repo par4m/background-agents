@@ -1,7 +1,17 @@
 import type { PiFeatureId } from "./pi-feature-capabilities";
 
-export type MigrationStore = "session_do" | "d1";
+/**
+ * The stores that carry a tracked migration registry.
+ *
+ * `session_do` is the Session Durable Object's own database, `pi_do` is the Pi
+ * Durable Object's own database, and `d1` is the deployment's global store.
+ * The two Durable Object stores are separate databases with separate
+ * numbering spaces: `pi_do` starts again at 1.
+ */
+export type MigrationStore = "session_do" | "pi_do" | "d1";
 
+export const PI_DO_OUTBOX_MIGRATION_ID = 1;
+export const PI_DO_REPOSITORY_DIFF_OUTBOX_MIGRATION_ID = 2;
 export const PI_SESSION_DO_SANDBOX_EXECUTION_REQUESTS_MIGRATION_ID = 58;
 export const PI_SESSION_DO_SANDBOX_EXECUTION_LIFECYCLE_MIGRATION_ID = 59;
 export const PI_SESSION_DO_EXTERNAL_ACTIONS_MIGRATION_ID = 60;
@@ -47,6 +57,18 @@ export type MigrationReservationClaim = Pick<MigrationReservation, "store" | "ve
  * D1 versions are rendered with four digits in filenames (90 becomes 0090).
  */
 export const PI_MIGRATION_RESERVATIONS = [
+  {
+    store: "pi_do",
+    version: PI_DO_OUTBOX_MIGRATION_ID,
+    feature: "piProjection",
+    purpose: "Pi projection outbox and finalization tombstones",
+  },
+  {
+    store: "pi_do",
+    version: PI_DO_REPOSITORY_DIFF_OUTBOX_MIGRATION_ID,
+    feature: "repositoryEditing",
+    purpose: "Pi repository diff publication outbox",
+  },
   {
     store: "session_do",
     version: PI_SESSION_DO_SANDBOX_EXECUTION_REQUESTS_MIGRATION_ID,

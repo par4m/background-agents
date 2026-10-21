@@ -367,7 +367,15 @@ function redactToolArguments(tool: string, args: Record<string, unknown>): Recor
  * answer, and the timeline is visible to every collaborator of the session.
  * The model still receives the full result; the timeline keeps the shape.
  */
-const REDACTED_OUTPUT_TOOLS = new Set(["write", "edit", "read", "mcp_read", "repository_read"]);
+const REDACTED_OUTPUT_TOOLS = new Set([
+  "write",
+  "edit",
+  "read",
+  "mcp_read",
+  "mcp_read_shared",
+  "mcp_read_connection",
+  "repository_read",
+]);
 
 function redactToolOutput(tool: string, output: string): string {
   return REDACTED_OUTPUT_TOOLS.has(tool) ? REDACTED : output;

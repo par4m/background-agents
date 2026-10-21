@@ -1381,7 +1381,16 @@ export function createSessionRuntime(platform: SessionPlatform, env: Env): Sessi
     durableObjectId,
     async () => {
       await statusService.cancel(() => messageQueue.cancelExecution());
-    }
+    },
+    // The Pi Durable Object preserves itself for the archive: it stops the
+    // agent's work and delivers every event the agent produced, so the
+    // session's timeline — and the export read from it — hold the whole
+    // record.
+    env.PI_SESSION
+      ? async () => {
+          await env.PI_SESSION!.preserveForArchive(getPublicSessionId());
+        }
+      : undefined
   );
   const sessionBudgetHandler = new SessionBudgetHandler(sessionCoreRepository, budgetService, () =>
     Date.now()
